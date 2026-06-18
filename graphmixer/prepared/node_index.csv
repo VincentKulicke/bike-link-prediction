@@ -1,0 +1,233 @@
+idx,station_id,name
+0,3996.01,7 St & 3 Ave
+1,4028.03,3 St & 3 Ave
+2,4125.07,7 Ave & Park Pl
+3,4143.04,3 Ave & Carroll St
+4,4193.14,1 Pl & Clinton St
+5,4605.04,Clinton St & Joralemon St
+6,4617.01,Lewis Ave & Kosciuszko St
+7,4659.02,Myrtle Ave & St Edwards St
+8,4683.02,Emerson Pl & Myrtle Ave
+9,4846.01,South St & Whitehall St
+10,4993.02,Pearl St & Hanover Square
+11,4993.15,Water St & Gouverneur Ln
+12,5001.08,Little West St & 1 Pl
+13,5024.10,Water St & Fletcher St
+14,5033.01,Broadway & Morris St
+15,5065.10,Maiden Ln & Pearl St
+16,5073.07,Greenwich St & Rector St
+17,5105.09,Liberty St & Nassau St
+18,5114.06,West Thames St
+19,5114.08,South End Ave & Albany St
+20,5145.02,Albany St & Greenwich St
+21,5167.06,St James Pl & Pearl St
+22,5170.01,Stagg St & Morgan Ave
+23,5175.08,Fulton St & Broadway
+24,5184.08,West St & Liberty St
+25,5207.01,Centre St & Chambers St
+26,5216.06,Vesey St & Church St
+27,5241.02,Metropolitan Ave & Vandervoort Ave
+28,5288.08,Park Pl & Church St
+29,5288.09,Warren St & W Broadway
+30,5288.12,Murray St & Greenwich St
+31,5294.04,Henry St & Grand St
+32,5297.02,Vesey Pl & River Terrace
+33,5329.03,West St & Chambers St
+34,5329.08,Murray St & West St
+35,5340.01,N 7 St & Driggs Ave
+36,5359.11,Leonard St & Church St
+37,5359.12,Duane St & Hudson St
+38,5359.13,Church St & Worth St
+39,5368.03,River Ter & Warren St
+40,5391.06,Lispenard St & Broadway
+41,5400.05,Harrison St & Hudson St
+42,5422.09,Lafayette St & Grand St
+43,5430.08,Franklin St & W Broadway
+44,5430.10,6 Ave & Walker St
+45,5450.01,N 10 St & Berry St
+46,5470.02,N Moore St & Hudson St
+47,5470.10,Greenwich St & Hubert St
+48,5470.12,North Moore St & Greenwich St
+49,5484.09,Allen St & Stanton St
+50,5489.04,N 11 St & Kent Ave
+51,5492.05,Cleveland Pl & Spring St
+52,5509.02,Washington St & Laight St
+53,5532.01,Mercer St & Spring St
+54,5539.06,Laight St & Hudson St
+55,5561.06,Lafayette St & Jersey St
+56,5584.04,E 6 St & Ave B
+57,5602.06,Greene St & Prince St
+58,5644.05,W Broadway & W Houston St
+59,5659.05,E 10 St & Ave A
+60,5679.08,Bleecker St & Crosby St
+61,5687.04,MacDougal St & Prince St
+62,5696.03,Pier 40 - Hudson River Park
+63,5712.12,E 5 St & Cooper Sq
+64,5721.07,Thompson St & Bleecker St
+65,5730.08,Greenwich St & W Houston St
+66,5763.03,Carmine St & 6 Ave
+67,5772.05,Morton St & Washington St
+68,5779.08,1 Ave & E 16 St
+69,5779.11,Ave A & E 14 St
+70,5785.05,Greenpoint Ave & Manhattan Ave
+71,5872.10,E 9 St & 5 Ave
+72,5914.03,W 11 St & 6 Ave
+73,6030.04,W 13 St & 7 Ave
+74,6030.06,W 15 St & 7 Ave
+75,6039.06,Washington St & Gansevoort St
+76,6072.06,Greenwich Ave & 8 Ave
+77,6072.11,8 Ave & W 16 St
+78,6089.07,Lexington Ave & E 24 St
+79,6098.10,Broadway & E 21 St
+80,6101.11,48 Ave & 41 St
+81,6108.03,69 St & 43 Ave
+82,6115.06,Hudson St & W 13 St
+83,6140.05,W 21 St & 6 Ave
+84,6148.02,W 17 St & 8 Ave
+85,6157.04,10 Ave & W 14 St
+86,6190.08,9 Ave & W 18 St
+87,6215.07,W 27 St & 6 Ave
+88,6224.03,W 22 St & 8 Ave
+89,6224.05,W 20 St & 8 Ave
+90,6233.04,Pier 61 at Chelsea Piers
+91,6233.05,W 16 St & The High Line
+92,6289.06,Broadway & W 29 St
+93,6297.07,8 Ave & W 27 St
+94,6331.01,W 31 St & 7 Ave
+95,6364.07,6 Ave & W 33 St
+96,6389.09,E 39 St & Lexington Ave
+97,6398.06,W 37 St & 5 Ave
+98,6425.04,11 Ave & W 27 St
+99,6432.10,E 41 St & Madison Ave (SE corner)
+100,6432.11,E 40 St & Park Ave
+101,6459.04,10 Ave & W 28 St
+102,6474.11,E 40 St & 5 Ave
+103,6492.04,W 33 St & 10 Ave
+104,6492.08,9 Ave & W 33 St
+105,6535.04,W 34 St & Hudson Blvd E
+106,6551.02,W 44 St & 5 Ave
+107,6551.11,E 43 St & Madison Ave
+108,6560.15,Broadway & W 38 St
+109,6584.12,E 47 St & Park Ave
+110,6626.11,W 48 St &  Rockefeller Plaza
+111,6659.03,E 53 St & Madison Ave
+112,6667.04,W 47 St & 6 Ave
+113,6682.08,E 60 St & York Ave
+114,6708.04,Broadway & W 48 St
+115,6740.01,W 52 St & 6 Ave
+116,6753.08,1 Ave & E 62 St
+117,6762.02,E 58 St & 3 Ave
+118,6762.04,3 Ave & E 62 St
+119,6765.01,12 Ave & W 40 St
+120,6795.01,W 46 St & 11 Ave
+121,6801.01,E 59 St & Madison Ave
+122,6822.09,1 Ave & E 68 St
+123,6839.10,Grand Army Plaza & Central Park S
+124,6884.03,W 56 St & 8 Ave
+125,6890.01,W 53 St & 10 Ave
+126,7014.12,Broadway & W 61 St
+127,7059.01,11 Ave & W 59 St
+128,7084.12,E 81 St & York Ave
+129,7123.04,W 64 St & Thelonious Monk Circle
+130,7128.08,E 76 St & Park Ave
+131,7207.08,W 70 St & Amsterdam Ave
+132,7235.13,E 88 St & 1 Ave
+133,7288.04,Riverside Dr & W 72 St
+134,7311.07,W 78 St & Broadway
+135,7323.09,5 Ave & E 87 St
+136,7354.01,Central Park West & W 85 St
+137,7414.17,3 Ave & E 100 St
+138,7432.09,W 89 St & Columbus Ave
+139,7463.09,E 103 St & Lexington Ave
+140,7484.05,W 87 St & West End Ave
+141,7524.09,West End Ave & W 94 St
+142,7541.01,W 95 St & Broadway
+143,7577.27,Central Park W & W 103 St
+144,7646.04,W 110 St & Amsterdam Ave
+145,7685.14,Mt Morris Park W & W 120 St
+146,7713.11,W 116 St & Broadway
+147,8358.03,W 180 St & Ft Washington Ave
+148,8358.10,Cabrini Blvd & W 177 St
+149,HB101,Hoboken Terminal - Hudson St & Hudson Pl
+150,HB102,Hoboken Terminal - River St & Hudson Pl
+151,HB103,South Waterfront Walkway - Sinatra Dr & 1 St
+152,HB105,City Hall - Washington St & 1 St
+153,HB201,12 St & Sinatra Dr N
+154,HB202,14 St Ferry - 14 St & Shipyard Ln
+155,HB203,Bloomfield St & 15 St
+156,HB301,4 St & Grand St
+157,HB302,6 St & Grand St
+158,HB303,Clinton St & 7 St
+159,HB304,7 St & Monroe St
+160,HB305,9 St HBLR - Jackson St & 8 St
+161,HB401,Southwest Park - Jackson St & Observer Hwy
+162,HB402,Madison St & 1 St
+163,HB404,Mama Johnson Field - 4 St & Jackson St
+164,HB407,Adams St & 2 St
+165,HB408,Marshall St & 2 St
+166,HB409,Clinton St & Newark St
+167,HB501,Columbus Park - Clinton St & 9 St
+168,HB502,11 St & Washington St
+169,HB503,Madison St & 10 St
+170,HB505,Willow Ave & 12 St
+171,HB506,Grand St & 14 St
+172,HB601,Church Sq Park - 5 St & Park Ave
+173,HB602,Stevens - River Ter & 6 St
+174,HB603,8 St & Washington St
+175,HB608,2 St & Park Ave
+176,HB609,River St & 1 St
+177,HB610,Adams St & 12 St
+178,HB611,4 St & River St
+179,JC002,Paulus Hook
+180,JC003,City Hall
+181,JC006,Warren St
+182,JC008,Newport Pkwy
+183,JC009,Hamilton Park
+184,JC013,Marin Light Rail
+185,JC014,Columbus Drive
+186,JC018,5 Corners Library
+187,JC019,Hilltop
+188,JC020,Baldwin at Montgomery
+189,JC022,Oakland Ave
+190,JC023,Brunswick St
+191,JC024,Pershing Field
+192,JC027,Jersey & 6th St
+193,JC032,Newark Ave
+194,JC034,Christ Hospital
+195,JC035,Van Vorst Park
+196,JC038,Essex Light Rail
+197,JC051,Union St
+198,JC052,Liberty Light Rail
+199,JC053,Lincoln Park
+200,JC055,McGinley Square
+201,JC057,Riverview Park
+202,JC059,Heights Elevator
+203,JC063,Jackson Square
+204,JC065,Dey St
+205,JC066,Newport PATH
+206,JC072,Morris Canal
+207,JC074,Jersey & 3rd
+208,JC075,Monmouth and 6th
+209,JC076,Dixon Mills
+210,JC077,Astor Place
+211,JC078,Lafayette Park
+212,JC080,Leonard Gordon Park
+213,JC081,Brunswick & 6th
+214,JC082,Manila & 1st
+215,JC084,Communipaw & Berry Lane
+216,JC093,Fairmount Ave
+217,JC094,Glenwood Ave
+218,JC095,Bergen Ave
+219,JC097,York St & Marin Blvd
+220,JC098,Washington St
+221,JC099,Montgomery St
+222,JC102,Grand St
+223,JC103,Journal Square
+224,JC104,Harborside
+225,JC105,Hoboken Ave at Monmouth St
+226,JC107,Grant Ave & MLK Dr
+227,JC108,Bergen Ave & Stegman St
+228,JC109,Bergen Ave & Sip Ave
+229,JC110,JC Medical Center
+230,JC115,Grove St PATH
+231,JC116,Exchange Pl
