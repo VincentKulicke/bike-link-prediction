@@ -24,6 +24,7 @@ Big-Data-Praktikum, Universität Leipzig.
 ├── graphmixer/
 │   ├── prepared/               # aufbereitete Eingaben (klein) + README
 │   └── model/                  # GraphMixer (PyTorch) + Colab-Runner
+├── lstm/                       # LSTM-Baseline (count) + Colab-Runner
 ├── hybrid_model/
 │   └── iteration1_gcn_cnn_fusion.ipynb   # eigenes Modell, Iteration 1
 └── docs/                       # Konzept (DE/EN), Datenanalyse, Methoden-Bewertung, Erklärungen
@@ -77,6 +78,6 @@ Verfahren hinweg.
 - [x] Datenaufbereitung + Sanity-Check
 - [x] Gemeinsames Evaluationsmodul
 - [x] GraphMixer-Baseline (Code + Colab-Runner)
-- [ ] LSTM-Baseline (count)
+- [x] LSTM-Baseline (count) (Code + Colab-Runner)
 - [ ] Hybridmodell mit Count-Kopf + Anbindung an `shared_eval`
 - [ ] Finale Vergleichstabellen
