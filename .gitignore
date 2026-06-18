@@ -11,6 +11,7 @@ env/
 
 # Modell-Ausgaben / Artefakte
 predictions/
+results/
 *.pt
 *.ckpt
 
