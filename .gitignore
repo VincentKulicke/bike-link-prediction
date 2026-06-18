@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# virtuelle Umgebungen
+.venv/
+venv/
+env/
+
+# Modell-Ausgaben / Artefakte
+predictions/
+*.pt
+*.ckpt
+
+# Rohdaten (nicht ins Repo – siehe README)
+*.zip
+data/raw/
+nyc-bike-sharing/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
