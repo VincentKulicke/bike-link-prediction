@@ -79,5 +79,5 @@ Verfahren hinweg.
 - [x] Gemeinsames Evaluationsmodul
 - [x] GraphMixer-Baseline (Code + Colab-Runner)
 - [x] LSTM-Baseline (count) (Code + Colab-Runner)
-- [ ] Hybridmodell mit Count-Kopf + Anbindung an `shared_eval`
+- [x] Hybridmodell GraphSAGE+GRU+Hurdle (binär & count), Iteration 2
 - [ ] Finale Vergleichstabellen
