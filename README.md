@@ -21,20 +21,21 @@ Big-Data-Praktikum, Universität Leipzig.
 .
 ├── evaluation/
 │   └── shared_eval.py          # MODELL-AGNOSTISCHES Eval (binär + count), eine GT/ein Split für alle
+├── prepared Data/              # aufbereitete Eingaben für ALLE Modelle (klein) + README
 ├── graphmixer/
-│   ├── prepared/               # aufbereitete Eingaben (klein) + README
-│   └── model/                  # GraphMixer (PyTorch) + Colab-Runner
+│   ├── model/                  # GraphMixer (PyTorch) + Colab-Runner
+│   └── prepare_hybrid_inputs.py
 ├── lstm/                       # LSTM-Baseline (count) + Colab-Runner
-├── hybrid_model/
-│   └── iteration1_gcn_cnn_fusion.ipynb   # eigenes Modell, Iteration 1
+├── hybrid_model/               # iteration1 (Ablation) + iteration2 (GraphSAGE+GRU+Hurdle)
+├── compare_models.py           # sammelt Vorhersagen → finale Vergleichstabellen
 └── docs/                       # Konzept (DE/EN), Datenanalyse, Methoden-Bewertung, Erklärungen
 ```
 
 ## Daten
 
-Die **aufbereiteten** Dateien liegen in `graphmixer/prepared/` (siehe das dortige
-README für Schema und Konventionen). Die **Rohdaten** sind absichtlich NICHT im
-Repo (zu groß), aber öffentlich reproduzierbar:
+Die **aufbereiteten** Dateien liegen in `prepared Data/` (siehe das dortige
+README für Schema und Konventionen) und werden von allen Modellen genutzt. Die
+**Rohdaten** sind absichtlich NICHT im Repo (zu groß), aber öffentlich reproduzierbar:
 
 - Hybrid-Datensatz (Superedge, Zeitreihen): Zenodo DOI `10.5281/zenodo.13846868`
 - Temporaler Graph (Einzelfahrten): Citi Bike System Data, Dateien
