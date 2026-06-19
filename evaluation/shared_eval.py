@@ -45,8 +45,7 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 # Konfiguration des Protokolls (fuer ALLE Modelle identisch)
 # ---------------------------------------------------------------------------
-PREP_DIR = os.path.join(os.path.dirname(__file__), "..",
-                        "graphmixer", "prepared")
+PREP_DIR = os.path.join(os.path.dirname(__file__), "..", "prepared Data")
 
 @dataclass
 class EvalConfig:

@@ -42,7 +42,7 @@ import torch.nn as nn
 @dataclass
 class GMConfig:
     # Pfade (relativ zu diesem Skript)
-    prep_dir: str = os.path.join(os.path.dirname(__file__), "..", "prepared")
+    prep_dir: str = os.path.join(os.path.dirname(__file__), "..", "..", "prepared Data")
     # Modell-Hyperparameter
     num_neighbors: int = 20        # K – Anzahl jüngster Kanten je Knoten (Link-Encoder)
     time_dim: int = 100            # Dimension der festen Zeit-Kodierung

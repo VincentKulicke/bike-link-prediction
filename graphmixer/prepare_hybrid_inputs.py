@@ -22,7 +22,7 @@ import ijson
 
 # --- Pfade -------------------------------------------------------------------
 DATA = r"C:/Users/user/Data/nyc-bike-sharing"             # Rohdaten (extern, anpassen)
-PREP = os.path.join(os.path.dirname(__file__), "prepared")  # Ziel (im Repo)
+PREP = os.path.join(os.path.dirname(__file__), "..", "prepared Data")  # Ziel (im Repo)
 
 BIN_SECONDS = 1800
 TRAIN_DAYS = 21
