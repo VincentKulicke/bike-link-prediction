@@ -21,13 +21,17 @@ Superedge-Datensatzes.
 
 ## Dateien
 
-| Datei | Inhalt |
-|---|---|
-| `graphmixer_edges.csv` | Rohformat: `u, i, ts, ts_iso, rideable_type, member_casual` (Knoten 0-indiziert 0…231) |
-| `node_index.csv` | Kanonisches Knoten-Mapping: `idx` (0…231) ↔ `station_id` ↔ `name` |
-| `ml_citibike.csv` | DyGLib-Kantenliste: `u, i, ts, label, idx` (**Knoten 1-indiziert** 1…232, homogen) |
-| `ml_citibike.npy` | Kanten-Features `(n+1, 4)`: One-Hot `classic, electric, member, casual`; Zeile 0 = Padding |
-| `ml_citibike_node.npy` | Knoten-Features `(233, 3)`: `capacity, lat, lon` (z-normalisiert); Zeile 0 = Padding |
+| Datei | Inhalt | genutzt von |
+|---|---|---|
+| `superedge_counts.csv` | **Ground-Truth-Quelle**: aggregierte Superedge-`num_rides` je 30-min-Bin `u, i, bin_idx, count` (= Δnum_rides). | `shared_eval` (Targets/Count-GT, alle Modelle), **LSTM** (Eingabe-Zeitreihe) |
+| `graphmixer_edges.csv` | Einzelfahrten (temporaler Graph): `u, i, ts, ts_iso, rideable_type, member_casual` | Bau von `ml_citibike.*` |
+| `node_index.csv` | Kanonisches Knoten-Mapping: `idx` (0…231) ↔ `station_id` ↔ `name` | alle |
+| `node_static.npy` | statische Knoten-Features `(232, 3)`: capacity, lat, lon | **Hybrid** (GraphSAGE) |
+| `node_avail.npy` | Verfügbarkeits-Zeitreihen `(232, T, 4)` je 30-min-Bin | **Hybrid** (GRU) |
+| `edge_index.npy` / `edge_weight.npy` | Adjazenz (gerichtet) + Gewicht = Superedge-`num_rides` im Training | **Hybrid** (GraphSAGE) |
+| `ml_citibike.csv` | DyGLib-Kantenliste: `u, i, ts, label, idx` (**Knoten 1-indiziert** 1…232, homogen) | **GraphMixer** |
+| `ml_citibike.npy` | Kanten-Features `(n+1, 4)`: One-Hot `classic, electric, member, casual`; Zeile 0 = Padding | **GraphMixer** |
+| `ml_citibike_node.npy` | Knoten-Features `(233, 3)`: `capacity, lat, lon` (z-normalisiert); Zeile 0 = Padding | **GraphMixer** |
 
 ## Wichtige Konventionen
 

@@ -50,23 +50,23 @@ class LSTMConfig:
 
 
 # ===========================================================================
-# 2) DATEN: Count-Matrix (Paar x Bin) aus den Trips bauen
+# 2) DATEN: Count-Matrix (Paar x Bin) aus der SUPEREDGE-Zeitreihe bauen
 # ===========================================================================
 class CountSeries:
-    """Baut aus den aufbereiteten Trips eine dichte Count-Matrix (Paare x Bins)."""
+    """Baut aus der aggregierten Superedge-Zeitreihe (num_rides je Bin) eine
+    dichte Count-Matrix (Paare x Bins). Genau diese Reihe ist der LSTM-Input."""
 
     def __init__(self, ev: SharedLinkEval):
-        trips = ev._load_trips()                       # Spalten: u, i, ts, bin_idx
-        self.n_bins = int(trips["bin_idx"].max()) + 1
+        raw = ev._load_raw()                           # Spalten: u, i, bin_idx, count (Superedge)
+        self.n_bins = int(raw["bin_idx"].max()) + 1
         # eindeutige Paare -> Zeilenindex
-        pairs = trips[["u", "i"]].drop_duplicates().reset_index(drop=True)
+        pairs = raw[["u", "i"]].drop_duplicates().reset_index(drop=True)
         self.pair_to_row = {(int(u), int(i)): r for r, (u, i) in
                             enumerate(zip(pairs["u"], pairs["i"]))}
         self.counts = np.zeros((len(pairs), self.n_bins), dtype=np.float32)
-        grp = trips.groupby(["u", "i", "bin_idx"]).size()
-        for (u, i, b), c in grp.items():
+        for u, i, b, c in zip(raw["u"], raw["i"], raw["bin_idx"], raw["count"]):
             self.counts[self.pair_to_row[(int(u), int(i))], int(b)] = c
-        print(f"Count-Matrix: {self.counts.shape[0]} Paare x {self.n_bins} Bins "
+        print(f"Count-Matrix (Superedge): {self.counts.shape[0]} Paare x {self.n_bins} Bins "
               f"| belegte Zellen: {int((self.counts > 0).sum()):,}")
 
     def window(self, u: int, i: int, bin_idx: int, lookback: int) -> np.ndarray:

@@ -73,9 +73,11 @@ def main():
                 node_avail[idx, :, c] = sample(ts.get(key, []))
     print(f"Knoten gefunden/erwartet: {found}/{N} | Bins: {n_bins}")
 
-    # Adjazenz aus dem Trainingszeitraum (kanonisch)
-    tr = trips[trips["ts"] < TRAIN_DAYS * 24 * 3600]
-    agg = tr.groupby(["u", "i"]).size().reset_index(name="w")
+    # Adjazenz aus dem Trainingszeitraum (kanonisch) – Gewicht = Superedge-num_rides
+    se = pd.read_csv(os.path.join(PREP, "superedge_counts.csv"))
+    train_end_bin = TRAIN_DAYS * ((24 * 60) // (BIN_SECONDS // 60))
+    tr = se[se["bin_idx"] < train_end_bin]
+    agg = tr.groupby(["u", "i"])["count"].sum().reset_index(name="w")
     edge_index = np.vstack([agg["u"].to_numpy(), agg["i"].to_numpy()]).astype(np.int64)
     edge_weight = agg["w"].to_numpy().astype(np.float32)
 
