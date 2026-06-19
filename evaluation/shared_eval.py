@@ -49,7 +49,7 @@ PREP_DIR = os.path.join(os.path.dirname(__file__), "..", "prepared Data")
 
 @dataclass
 class EvalConfig:
-    edges_csv: str = os.path.join(PREP_DIR, "graphmixer_edges.csv")  # kanonisch 0-indiziert
+    targets_csv: str = os.path.join(PREP_DIR, "superedge_counts.csv")  # Superedge-num_rides je Bin (u,i,bin_idx,count)
     bin_minutes: int = 30          # Laenge eines Vorhersage-Fensters
     # Temporaler Split in Tagen (Fenster ~29 Tage): Train 21 / Val 4 / Test 4
     train_days: int = 21
@@ -119,21 +119,18 @@ def count_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
 class SharedLinkEval:
     def __init__(self, config: EvalConfig | None = None):
         self.cfg = config or EvalConfig()
-        self._trips = None
+        self._raw = None
         self._targets = None
 
-    # ---- Rohtrips laden (kanonisch 0-indiziert) ----
-    def _load_trips(self) -> pd.DataFrame:
-        if self._trips is None:
-            df = pd.read_csv(self.cfg.edges_csv, usecols=["u", "i", "ts"])
-            df["bin_idx"] = (df["ts"].values // self.cfg.bin_seconds).astype(int)
-            self._trips = df
-        return self._trips
+    # ---- Superedge-Count-Tabelle laden (bereits je 30-min-Bin aggregiert) ----
+    def _load_raw(self) -> pd.DataFrame:
+        if self._raw is None:
+            self._raw = pd.read_csv(self.cfg.targets_csv, usecols=["u", "i", "bin_idx", "count"])
+        return self._raw
 
     @property
     def n_bins(self) -> int:
-        df = self._load_trips()
-        return int(df["bin_idx"].max()) + 1
+        return int(self._load_raw()["bin_idx"].max()) + 1
 
     def _split_of_bin(self, bin_idx: np.ndarray) -> np.ndarray:
         bins_per_day = (24 * 60) // self.cfg.bin_minutes
@@ -145,13 +142,11 @@ class SharedLinkEval:
 
     # ---- Ground Truth: count & label je (u,i,bin) ----
     def build_targets(self) -> pd.DataFrame:
-        """Positive Zellen: count = Anzahl Trips in (u,i,bin) = Delta num_rides.
+        """Positive Zellen: count = Delta num_rides der Superedge in (u,i,bin).
         label = 1 (count>0). Negative werden separat in build_candidates gezogen."""
         if self._targets is not None:
             return self._targets
-        df = self._load_trips()
-        g = (df.groupby(["u", "i", "bin_idx"]).size()
-               .reset_index(name="count"))
+        g = self._load_raw().copy()
         g["label"] = 1
         g["split"] = self._split_of_bin(g["bin_idx"].values)
         self._targets = g
@@ -168,8 +163,7 @@ class SharedLinkEval:
         if len(pos) == 0:
             raise ValueError(f"Keine Positives im Split '{split}'.")
 
-        df = self._load_trips()
-        nodes = np.unique(np.concatenate([df["u"].values, df["i"].values]))
+        nodes = np.unique(np.concatenate([tg["u"].values, tg["i"].values]))
         bins = pos["bin_idx"].unique()
         rng = np.random.default_rng(self.cfg.seed)
         pos_set = set(zip(pos["u"], pos["i"], pos["bin_idx"]))

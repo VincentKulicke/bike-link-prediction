@@ -34,8 +34,13 @@ Big-Data-Praktikum, Universität Leipzig.
 ## Daten
 
 Die **aufbereiteten** Dateien liegen in `prepared Data/` (siehe das dortige
-README für Schema und Konventionen) und werden von allen Modellen genutzt. Die
-**Rohdaten** sind absichtlich NICHT im Repo (zu groß), aber öffentlich reproduzierbar:
+README für Schema und Konventionen) und werden von allen Modellen genutzt.
+
+**Count-Ground-Truth = Superedge-`num_rides`-Differenz** (`superedge_counts.csv`),
+gemäß Aufgabenstellung. Die LSTM nutzt dieselbe Superedge-Zeitreihe als Eingabe;
+der GraphMixer nutzt die einzelnen, zeitgestempelten Kanten (`ml_citibike.*`).
+
+Die **Rohdaten** sind absichtlich NICHT im Repo (zu groß), aber öffentlich reproduzierbar:
 
 - Hybrid-Datensatz (Superedge, Zeitreihen): Zenodo DOI `10.5281/zenodo.13846868`
 - Temporaler Graph (Einzelfahrten): Citi Bike System Data, Dateien
