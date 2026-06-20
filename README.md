@@ -23,9 +23,9 @@ Big-Data-Praktikum, Universität Leipzig.
 │   └── shared_eval.py          # MODELL-AGNOSTISCHES Eval (binär + count), eine GT/ein Split für alle
 ├── prepared Data/              # aufbereitete Eingaben für ALLE Modelle (klein) + README
 ├── graphmixer/
-│   ├── model/                  # GraphMixer (PyTorch) + Colab-Runner
+│   ├── model/                  # GraphMixer (PyTorch) + lokaler Runner
 │   └── prepare_hybrid_inputs.py
-├── lstm/                       # LSTM-Baseline (count) + Colab-Runner
+├── lstm/                       # LSTM-Baseline (count) + lokaler Runner
 ├── hybrid_model/               # iteration1 (Ablation) + iteration2 (GraphSAGE+GRU+Hurdle)
 ├── compare_models.py           # sammelt Vorhersagen → finale Vergleichstabellen
 └── docs/                       # Konzept (DE/EN), Datenanalyse, Methoden-Bewertung, Erklärungen
@@ -55,15 +55,29 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-## GraphMixer-Baseline ausführen
+## Modelle lokal ausführen
+
+Alles läuft lokal (CPU genügt, der Datensatz ist klein; GPU wird genutzt falls
+vorhanden). Jedes Modell hat ein Runner-Notebook, das aus seinem Ordner heraus
+ausgeführt wird, oder kann per Skript gestartet werden:
 
 ```bash
-cd graphmixer/model
-python train_graphmixer.py                 # nutzt GPU falls vorhanden, sonst CPU
+# GraphMixer (binär)
+cd graphmixer/model && python train_graphmixer.py        # oder run_graphmixer.ipynb
+# LSTM (count)
+cd lstm && python lstm_count.py                          # oder run_lstm.ipynb
+# Hybridmodell (binär + count)
+#   hybrid_model/iteration2_graphsage_gru_hurdle.ipynb
 ```
-Schneller Smoke-Test: in `train_graphmixer.py` `main(GMConfig(epochs=2))`.
-Ergebnis: `graphmixer/model/predictions/graphmixer_pred_{val,test}.csv` + AUC/AP/F1.
-Alternativ Colab: `graphmixer/model/run_graphmixer.ipynb` (Pfade anpassen).
+Schneller Smoke-Test über die Configs, z. B. `GMConfig(epochs=2)` /
+`LSTMConfig(epochs=2)`. Jede Ausführung schreibt `predictions/*.csv` im
+jeweiligen Modellordner.
+
+## Finale Vergleichstabellen
+
+```bash
+python compare_models.py     # sammelt alle predictions/*.csv -> results/comparison.md
+```
 
 ## Bewertung (für alle Modelle gleich)
 
@@ -83,7 +97,16 @@ Verfahren hinweg.
 
 - [x] Datenaufbereitung + Sanity-Check
 - [x] Gemeinsames Evaluationsmodul
-- [x] GraphMixer-Baseline (Code + Colab-Runner)
-- [x] LSTM-Baseline (count) (Code + Colab-Runner)
+- [x] GraphMixer-Baseline (Code + lokaler Runner)
+- [x] LSTM-Baseline (count) (Code + lokaler Runner)
 - [x] Hybridmodell GraphSAGE+GRU+Hurdle (binär & count), Iteration 2
-- [ ] Finale Vergleichstabellen
+- [ ] Modell-Läufe + finale Vergleichstabellen
+
+## Teilen via GitLab
+
+```bash
+git remote add origin <DEINE-GITLAB-REPO-URL>
+git push -u origin main
+```
+Rohdaten und Modell-Ausgaben (`predictions/`, `results/`) sind via `.gitignore`
+ausgeschlossen; die kleinen aufbereiteten Daten in `prepared Data/` liegen im Repo.
