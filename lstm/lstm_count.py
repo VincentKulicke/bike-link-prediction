@@ -16,7 +16,7 @@ Designentscheidungen (abgestimmt):
 Bindet das gemeinsame Eval-Modul an: exportiert Vorhersagen als
 (u, i, bin_idx, pred_count) und bewertet via SharedLinkEval.score_count.
 
-Lokal ist PyTorch optional installierbar; ansonsten Colab/GPU.
+Benötigt PyTorch (GPU optional; CPU genügt).
 """
 from __future__ import annotations
 import os, sys, time
