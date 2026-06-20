@@ -22,7 +22,7 @@ HINWEIS Knoten-Indizierung
   dieses Modul ebenfalls 1-indiziert. Beim EXPORT für shared_eval wird auf die
   kanonische 0-Indizierung (-1) zurückgerechnet (siehe export_predictions()).
 
-Lokal ist kein PyTorch installiert -> dieses Modul ist für Colab/GPU gedacht.
+Benötigt PyTorch (GPU optional; CPU genügt, der Datensatz ist klein).
 """
 
 from __future__ import annotations

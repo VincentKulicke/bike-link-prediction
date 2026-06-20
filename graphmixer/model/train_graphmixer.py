@@ -14,7 +14,7 @@ Ablauf:
   4. Export als CSV (u, i, bin_idx, score) – KANONISCH 0-indiziert
   5. direkte Bewertung über shared_eval.SharedLinkEval.score_binary
 
-Aufruf (z. B. in Colab):  python train_graphmixer.py
+Aufruf:  python train_graphmixer.py
 """
 
 from __future__ import annotations
