@@ -1,0 +1,2 @@
+model,best_config,test_auc,test_ap,test_f1,test_acc
+GraphMixer (HPO),lr0.0001_h64_L1,0.9254958935481562,0.7563113147127888,0.5034488896800321,0.6940331249314468

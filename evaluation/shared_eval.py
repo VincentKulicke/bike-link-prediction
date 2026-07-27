@@ -113,6 +113,31 @@ def count_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
             "rmse": float(np.sqrt(np.mean(err**2)))}
 
 
+def ranking_metrics(df: pd.DataFrame, score_col: str = "score") -> dict:
+    """Metrics for the 1-vs-K ranking protocol.
+
+    df must have columns: query_id, label (1 for the true destination, 0 for
+    the sampled negatives), and `score_col`. Each query is one positive plus K
+    negatives; we rank the positive within its query.
+
+    Reports MRR / Hits@1 / Hits@5 (grouped, the ranking view) plus pooled AUC/AP
+    over all rows (the harder binary view under 1:K imbalance).
+    """
+    lab = df["label"].values
+    sc = df[score_col].values
+    out = {"auc": auc_roc(lab, sc), "ap": average_precision(lab, sc)}
+    rr, h1, h5 = [], [], []
+    for _q, g in df.groupby("query_id"):
+        s = g[score_col].values
+        order = np.argsort(-s, kind="mergesort")
+        ranks = np.empty(len(s)); ranks[order] = np.arange(1, len(s) + 1)
+        pr = int(ranks[g["label"].values == 1][0])   # rank of the positive
+        rr.append(1.0 / pr); h1.append(pr <= 1); h5.append(pr <= 5)
+    out.update({"mrr": float(np.mean(rr)), "hits@1": float(np.mean(h1)),
+                "hits@5": float(np.mean(h5)), "n_queries": len(rr)})
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Shared eval object
 # ---------------------------------------------------------------------------
@@ -212,6 +237,45 @@ class SharedLinkEval:
         out = {"split": split, "n_total": len(m)}
         out.update(count_metrics(m["count"].values, m[count_col].values))
         return out
+
+    # ---- harder 1-vs-K ranking candidate set (destination ranking) ----
+    def build_ranking_candidates(self, split: str = "test", n_neg: int = 99,
+                                 max_queries: int = 5000) -> pd.DataFrame:
+        """Fixed, seeded 1-vs-K ranking set: each observed positive (u, i, bin)
+        becomes a query of the true destination i plus `n_neg` random destinations
+        i' (same source u and bin, i' not a positive there). The model must rank
+        the true i among the K+1 candidates.
+
+        Returns columns: query_id, u, i, bin_idx, label (1 = true destination).
+        Harder than the 1:5 binary set, so it exposes differences the saturated
+        1:5 protocol hides.
+        """
+        tg = self.build_targets()
+        pos = tg[tg["split"] == split][["u", "i", "bin_idx"]].to_numpy()
+        if len(pos) == 0:
+            raise ValueError(f"No positives in split '{split}'.")
+        rng = np.random.default_rng(self.cfg.seed)
+        if len(pos) > max_queries:
+            pos = pos[rng.choice(len(pos), size=max_queries, replace=False)]
+        P = len(pos)
+        nodes = np.unique(np.concatenate([tg["u"].values, tg["i"].values]))
+        u = pos[:, 0]; i_true = pos[:, 1]; b = pos[:, 2]
+
+        neg = rng.choice(nodes, size=(P, n_neg))
+        for _ in range(6):   # resample obvious collisions (self-loop / true target)
+            bad = (neg == u[:, None]) | (neg == i_true[:, None])
+            if not bad.any():
+                break
+            neg[bad] = rng.choice(nodes, size=int(bad.sum()))
+
+        qid = np.repeat(np.arange(P), n_neg + 1)
+        uu = np.repeat(u, n_neg + 1)
+        bb = np.repeat(b, n_neg + 1)
+        ii = np.empty((P, n_neg + 1), dtype=i_true.dtype)
+        ii[:, 0] = i_true; ii[:, 1:] = neg
+        lab = np.zeros((P, n_neg + 1), dtype=int); lab[:, 0] = 1
+        return pd.DataFrame({"query_id": qid, "u": uu, "i": ii.reshape(-1),
+                             "bin_idx": bb, "label": lab.reshape(-1)})
 
 
 # ---------------------------------------------------------------------------
