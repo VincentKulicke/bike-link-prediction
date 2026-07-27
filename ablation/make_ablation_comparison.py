@@ -21,7 +21,7 @@ RES = os.path.join(_HERE, "results")
 DEFAULT = {
     "Hybrid-GRU": dict(auc=0.985, ap=0.923, f1=0.859, acc=0.952,
                        mse=0.082, mae=0.092, rmse=0.287),
-    "GraphMixer": dict(auc=0.909, ap=0.653, f1=0.515, acc=0.708),
+    "GraphMixer": dict(auc=0.895, ap=0.563, f1=0.554, acc=0.758),
     "LSTM":       dict(mse=0.239, mae=0.187, rmse=0.489),
 }
 
@@ -58,6 +58,13 @@ def main():
                  "metric only**; the test split was computed **once** per model "
                  "(final config). All runs use the same `shared_eval` protocol and "
                  "seed 42.\n")
+    lines.append("> **Read together with `seeds_comparison.md`.** The numbers below are "
+                 "single runs (seed 42) and carry no error bars. Across 5 seeds two of "
+                 "the differences shown here turn out to be seed noise: the LSTM tuning "
+                 "gain and the hybrid default-vs-HPO gap. Only the GraphMixer tuning gain "
+                 "survives (+0.106 AP, 3.4 σ). GraphMixer is also by far the least stable "
+                 "model (±0.023 AP vs. ±0.0007 for the hybrid), so its single-seed numbers "
+                 "should be read with that spread in mind.\n")
 
     # --- binary ---------------------------------------------------------------
     lines.append("## Comparison 1 – binary (link yes/no), test set\n")

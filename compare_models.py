@@ -92,7 +92,12 @@ def main():
     status = (f"Available predictions: {', '.join(present) if present else 'none'}"
               + (f" | missing: {', '.join(missing)}" if missing else ""))
 
-    out = "# Model comparison\n\n" + status + "\n\n" + binary_table(res) + "\n\n" + count_table(res) + "\n"
+    note = ("> Single run per model (seed 42). For error bars see "
+            "`ablation/results/seeds_comparison.md` — across 5 seeds the hybrid sits at "
+            "AP 0.923 ± 0.001 and GraphMixer at 0.596 ± 0.023, so GraphMixer in particular "
+            "varies noticeably from seed to seed.")
+    out = ("# Model comparison\n\n" + status + "\n\n" + note + "\n\n"
+           + binary_table(res) + "\n\n" + count_table(res) + "\n")
     print(out)
 
     res_dir = os.path.join(HERE, "results"); os.makedirs(res_dir, exist_ok=True)
