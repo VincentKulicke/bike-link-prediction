@@ -27,9 +27,10 @@ Big Data Praktikum, Leipzig University.
 │   └── prepare_hybrid_inputs.py
 ├── lstm/                       # LSTM baseline (count) + local runner
 ├── hybrid_model/               # iteration1 (ablation) + iteration2 (GraphSAGE+GRU+hurdle)
-├── ablation/                   # grid-search HPO for all models + GraphSAGE+1D-CNN ablation
+├── ablation/                   # grid-search HPO, encoder ablation, seed & factor experiments
+│   └── results/                # comparison reports (ablation, ranking, seeds, factors)
 ├── compare_models.py           # collects predictions → final comparison tables
-└── docs/                       # concept (DE/EN), data analysis, methods assessment, explanations
+└── results/                    # comparison.md across all models
 ```
 
 ## Data
