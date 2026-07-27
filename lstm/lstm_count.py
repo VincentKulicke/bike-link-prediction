@@ -1,22 +1,22 @@
 # -*- coding: utf-8 -*-
 """
-LSTM-Baseline (Count) – reine Zeitreihen-Vorhersage.
-====================================================
+LSTM baseline (count) – pure time-series prediction.
+=====================================================
 
-Vergleich 2 der Aufgabenstellung: prognostiziert pro Stationspaar (u->i) die
-Fahrtenzahl im naechsten 30-Minuten-Bin aus der vergangenen Count-Reihe dieses
-Paares (= Differenz der num_rides-Zeitreihe). KEINE Graphstruktur.
+Comparison 2 of the assignment: for each station pair (u->i), predict the
+number of rides in the next 30-minute bin from that pair's past count series
+(= difference of the num_rides series). NO graph structure.
 
-Designentscheidungen (abgestimmt):
-  - EIN globales LSTM ueber die Count-Reihen aller Kanten (Multi-Series).
-  - Lookback = 48 Bins (24 h).
-  - Univariate Eingabe (nur vergangene Counts).
-  - Trainingsziel = MSE (entspricht der Evaluationsmetrik).
+Design choices (agreed):
+  - ONE global LSTM over the count series of all edges (multi-series).
+  - Lookback = 48 bins (24 h).
+  - Univariate input (past counts only).
+  - Training objective = MSE (matches the evaluation metric).
 
-Bindet das gemeinsame Eval-Modul an: exportiert Vorhersagen als
-(u, i, bin_idx, pred_count) und bewertet via SharedLinkEval.score_count.
+Hooks into the shared eval module: exports predictions as
+(u, i, bin_idx, pred_count) and scores via SharedLinkEval.score_count.
 
-Benötigt PyTorch (GPU optional; CPU genügt).
+Needs PyTorch (GPU optional; CPU is enough).
 """
 from __future__ import annotations
 import os, sys, time
@@ -27,50 +27,50 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 
-# gemeinsames Eval-Modul (liegt unter ../evaluation)
+# shared eval module (lives under ../evaluation)
 _EVAL_DIR = os.path.join(os.path.dirname(__file__), "..", "evaluation")
 sys.path.insert(0, _EVAL_DIR)
 from shared_eval import SharedLinkEval, EvalConfig   # noqa: E402
 
 
 # ===========================================================================
-# 1) KONFIGURATION
+# 1) CONFIG
 # ===========================================================================
 @dataclass
 class LSTMConfig:
-    lookback: int = 48             # Eingabefenster (Bins) = 24 h bei 30-min-Bins
+    lookback: int = 48             # input window (bins) = 24 h at 30-min bins
     hidden_dim: int = 64
     num_layers: int = 1
     dropout: float = 0.0
     lr: float = 1e-3
     epochs: int = 10
     batch_size: int = 512
-    max_train_samples: int = 400_000   # Subsampling der Trainingsfenster (Tempo)
+    max_train_samples: int = 400_000   # subsample the training windows (speed)
     seed: int = 42
 
 
 # ===========================================================================
-# 2) DATEN: Count-Matrix (Paar x Bin) aus der SUPEREDGE-Zeitreihe bauen
+# 2) DATA: build a count matrix (pair x bin) from the SUPEREDGE series
 # ===========================================================================
 class CountSeries:
-    """Baut aus der aggregierten Superedge-Zeitreihe (num_rides je Bin) eine
-    dichte Count-Matrix (Paare x Bins). Genau diese Reihe ist der LSTM-Input."""
+    """Builds a dense count matrix (pairs x bins) from the aggregated super-edge
+    series (num_rides per bin). This series is exactly the LSTM input."""
 
     def __init__(self, ev: SharedLinkEval):
-        raw = ev._load_raw()                           # Spalten: u, i, bin_idx, count (Superedge)
+        raw = ev._load_raw()                           # columns: u, i, bin_idx, count (super-edge)
         self.n_bins = int(raw["bin_idx"].max()) + 1
-        # eindeutige Paare -> Zeilenindex
+        # unique pairs -> row index
         pairs = raw[["u", "i"]].drop_duplicates().reset_index(drop=True)
         self.pair_to_row = {(int(u), int(i)): r for r, (u, i) in
                             enumerate(zip(pairs["u"], pairs["i"]))}
         self.counts = np.zeros((len(pairs), self.n_bins), dtype=np.float32)
         for u, i, b, c in zip(raw["u"], raw["i"], raw["bin_idx"], raw["count"]):
             self.counts[self.pair_to_row[(int(u), int(i))], int(b)] = c
-        print(f"Count-Matrix (Superedge): {self.counts.shape[0]} Paare x {self.n_bins} Bins "
-              f"| belegte Zellen: {int((self.counts > 0).sum()):,}")
+        print(f"Count matrix (super-edge): {self.counts.shape[0]} pairs x {self.n_bins} bins "
+              f"| non-zero cells: {int((self.counts > 0).sum()):,}")
 
     def window(self, u: int, i: int, bin_idx: int, lookback: int) -> np.ndarray:
-        """Vergangene `lookback` Counts vor bin_idx (zero-gepolstert, falls Paar/Anfang fehlt)."""
+        """Past `lookback` counts before bin_idx (zero-padded if pair/start is missing)."""
         row = self.pair_to_row.get((int(u), int(i)))
         w = np.zeros(lookback, dtype=np.float32)
         if row is None:
@@ -83,16 +83,16 @@ class CountSeries:
 
 
 # ===========================================================================
-# 3) TRAININGS-DATENSATZ (Sliding Windows ueber alle Paare im Trainingszeitraum)
+# 3) TRAINING DATASET (sliding windows over all pairs in the training period)
 # ===========================================================================
 class WindowDataset(Dataset):
     def __init__(self, cs: CountSeries, cfg: LSTMConfig, train_end_bin: int, rng):
         self.cs = cs; self.lb = cfg.lookback
-        # alle (Zeilen-, t)-Indizes mit gueltigem Fenster im Trainingszeitraum
+        # all (row, t) indices with a valid window inside the training period
         n_rows = cs.counts.shape[0]
         ts = np.arange(cfg.lookback, train_end_bin)
         rows = np.arange(n_rows)
-        # kartesisches Produkt, dann subsamplen
+        # cartesian product, then subsample
         total = n_rows * len(ts)
         if total > cfg.max_train_samples:
             ridx = rng.integers(0, n_rows, size=cfg.max_train_samples)
@@ -100,19 +100,19 @@ class WindowDataset(Dataset):
         else:
             ridx = np.repeat(rows, len(ts)); tidx = np.tile(ts, n_rows)
         self.row = ridx.astype(np.int32); self.t = tidx.astype(np.int32)
-        print(f"Trainingsfenster: {len(self.row):,} (von theoretisch {total:,})")
+        print(f"Training windows: {len(self.row):,} (of a theoretical {total:,})")
 
     def __len__(self): return len(self.row)
 
     def __getitem__(self, k):
         r = int(self.row[k]); t = int(self.t[k])
         x = self.cs.counts[r, t - self.lb:t].copy()          # (lookback,)
-        y = self.cs.counts[r, t]                              # Skalar
+        y = self.cs.counts[r, t]                              # scalar
         return torch.from_numpy(x).unsqueeze(-1), torch.tensor(y, dtype=torch.float32)
 
 
 # ===========================================================================
-# 4) MODELL
+# 4) MODEL
 # ===========================================================================
 class LSTMForecaster(nn.Module):
     def __init__(self, cfg: LSTMConfig):
@@ -121,11 +121,11 @@ class LSTMForecaster(nn.Module):
                             num_layers=cfg.num_layers, batch_first=True,
                             dropout=cfg.dropout if cfg.num_layers > 1 else 0.0)
         self.head = nn.Linear(cfg.hidden_dim, 1)
-        self.softplus = nn.Softplus()                        # erzwingt nicht-negative Counts
+        self.softplus = nn.Softplus()                        # force non-negative counts
 
     def forward(self, x):
         out, _ = self.lstm(x)            # (B, L, H)
-        last = out[:, -1, :]             # letzter Zeitschritt
+        last = out[:, -1, :]             # last time step
         return self.softplus(self.head(last)).squeeze(-1)    # (B,)
 
 
@@ -145,12 +145,12 @@ def train(cfg, cs, model, train_end_bin, device, rng):
             loss = loss_fn(model(x), y)
             loss.backward(); opt.step()
             total += loss.item(); nb += 1
-        print(f"Epoche {ep:2d}/{cfg.epochs} | MSE {total/max(1,nb):.4f}")
+        print(f"Epoch {ep:2d}/{cfg.epochs} | MSE {total/max(1,nb):.4f}")
     return model
 
 
 # ===========================================================================
-# 6) VORHERSAGE-EXPORT fuer die shared_eval-Kandidaten
+# 6) PREDICTION EXPORT for the shared_eval candidates
 # ===========================================================================
 @torch.no_grad()
 def export(cfg, cs, model, ev, split, device, out_csv):
@@ -182,14 +182,14 @@ def main(cfg: LSTMConfig | None = None):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {device}")
 
-    ev = SharedLinkEval()                                  # identisches Protokoll wie alle Modelle
+    ev = SharedLinkEval()                                  # same protocol as every model
     cs = CountSeries(ev)
     bins_per_day = (24 * 60) // ev.cfg.bin_minutes
     train_end_bin = ev.cfg.train_days * bins_per_day
-    print(f"Train-Bins < {train_end_bin} | Lookback {cfg.lookback}")
+    print(f"Train bins < {train_end_bin} | lookback {cfg.lookback}")
 
     model = LSTMForecaster(cfg).to(device)
-    print(f"Parameter: {sum(p.numel() for p in model.parameters()):,}")
+    print(f"Parameters: {sum(p.numel() for p in model.parameters()):,}")
     model = train(cfg, cs, model, train_end_bin, device, rng)
 
     out_dir = os.path.join(os.path.dirname(__file__), "predictions")
