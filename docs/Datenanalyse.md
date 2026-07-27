@@ -1,216 +1,216 @@
 ---
-tags: [projekt, datenanalyse, link-prediction]
-status: aktiv
-erstellt: 2026-05-12
-projekt: Link Prediction on Hybrid Graph + Time Series Data
+tags: [project, data-analysis, link-prediction]
+status: active
+created: 2026-05-12
+project: Link Prediction on Hybrid Graph + Time Series Data
 ---
 
-# Datenanalyse: NYC Bike Sharing Network
+# Data analysis: NYC Bike Sharing Network
 
-Vollständige Datenexploration der beiden JSON-Dateien aus dem Zenodo-Record [10.5281/zenodo.13846868](https://zenodo.org/records/13846868). Diese Notiz dokumentiert die Schemata und die wichtigsten statistischen Eigenschaften. Aufgabenstellung und Methodendesign liegen in [[Link Prediction on Hybrid Graph + Time Series Data.md|Hauptdatei des Projekts]].
+Full data exploration of the two JSON files from the Zenodo record [10.5281/zenodo.13846868](https://zenodo.org/records/13846868). This note documents the schemas and the most important statistical properties. The task and the method design live in the [[Link Prediction on Hybrid Graph + Time Series Data.md|project's main file]].
 
-## Methodik
+## Method
 
-Die Analyse wurde direkt auf den vollständigen Dateien ausgeführt, lokal abgelegt unter `C:\Users\user\Data\nyc-bike-sharing\` (außerhalb des Vaults). `graph_edges.json` wurde komplett in den Speicher geladen, `graph_nodes.json` wurde wegen seiner Größe mit `ijson` gestreamt. Alle Zahlen sind reproduzierbar mit dem Skript am Ende dieser Notiz.
+The analysis was run directly on the full files, stored locally under `C:\Users\user\Data\nyc-bike-sharing\` (outside the vault). `graph_edges.json` was loaded fully into memory; `graph_nodes.json` was streamed with `ijson` because of its size. All numbers are reproducible with the script at the end of this note.
 
-## Überblick
+## Overview
 
-| Kennzahl | Wert |
+| Metric | Value |
 |---|---|
-| Anzahl Knoten (Stationen) | **2.213** |
-| Anzahl gerichteter Kanten (super_edges) | **5.626** |
-| Beobachtungszeitraum | 2024-05-16 bis 2024-06-14 (ca. 4 Wochen) |
-| Knoten mit identischem Beobachtungsfenster | 2.213 / 2.213 (100%) |
-| Knoten-Zeitreihen-Punkte insgesamt | **7.521.171** |
-| Trips insgesamt (Summe letzter num_rides-Werte) | **102.594** |
+| Number of nodes (stations) | **2,213** |
+| Number of directed edges (super_edges) | **5,626** |
+| Observation period | 2024-05-16 to 2024-06-14 (about 4 weeks) |
+| Nodes with an identical observation window | 2,213 / 2,213 (100%) |
+| Total node time-series points | **7,521,171** |
+| Total trips (sum of last num_rides values) | **102,594** |
 
-## 1. Knoten-Schema (`graph_nodes.json`)
+## 1. Node schema (`graph_nodes.json`)
 
-Jedes Element ist eine Citi-Bike-Station.
+Each element is a Citi Bike station.
 
-### Statische Felder pro Knoten
+### Static fields per node
 
-| Feld | Typ | Beschreibung |
+| Field | Type | Description |
 |---|---|---|
-| `station_id` | UUID | Primärschlüssel, identisch mit `nodeid` |
-| `nodeid` | UUID | Duplikat von `station_id`, wird als Graph-Key verwendet |
-| `name` | string | Klartext-Stationsname (z.B. "Whitehall St & Bridge St") |
-| `short_name` | string | Interner Kurzcode (z.B. "4962.02") |
-| `region_id` | string \| null | **Nicht konstant.** Verteilung: `"71"` 1.740, `null` 393, `"70"` 53, `"311"` 27 |
-| `capacity` | int | Anzahl Docks. Beobachteter Bereich **1..123**, Median 24, Mittelwert 31.2 |
-| `lat`, `lon` | float | Geokoordinaten |
-| `start`, `end` | ISO datetime | Beobachtungsfenster, **konstant für alle Knoten** (`2024-05-16T00:00:00` bis `2024-06-14T00:00:00`) |
-| `labels` | list[string] | Konstant `["station"]` für alle Knoten |
+| `station_id` | UUID | Primary key, identical to `nodeid` |
+| `nodeid` | UUID | Duplicate of `station_id`, used as the graph key |
+| `name` | string | Human-readable station name (e.g. "Whitehall St & Bridge St") |
+| `short_name` | string | Internal short code (e.g. "4962.02") |
+| `region_id` | string \| null | **Not constant.** Distribution: `"71"` 1,740, `null` 393, `"70"` 53, `"311"` 27 |
+| `capacity` | int | Number of docks. Observed range **1..123**, median 24, mean 31.2 |
+| `lat`, `lon` | float | Geo-coordinates |
+| `start`, `end` | ISO datetime | Observation window, **constant for all nodes** (`2024-05-16T00:00:00` to `2024-06-14T00:00:00`) |
+| `labels` | list[string] | Constant `["station"]` for all nodes |
 
-> **Korrektur zu einer früheren Annahme**: `region_id` ist nicht konstant. Es gibt vier verschiedene Werte plus `null`. Beim Preprocessing als kategorisches Feature behandeln und Missing-Values explizit kodieren.
+> **Correction to an earlier assumption**: `region_id` is not constant. There are four distinct values plus `null`. Treat it as a categorical feature in preprocessing and encode missing values explicitly.
 
-### Dynamische Felder — `ts`-Block
+### Dynamic fields — the `ts` block
 
-Jeder Knoten trägt **vier** Zeitreihen-Serien:
+Each node carries **four** time series:
 
-| Serie                  | Bedeutung                                                    |
-| ---------------------- | ------------------------------------------------------------ |
-| `num_bikes_available`  | Aktuell andockfähige, verleihbare Räder                      |
-| `num_ebikes_available` | Teilmenge der verfügbaren Räder, die E-Bikes sind            |
-| `num_bikes_disabled`   | Räder physisch an der Station, aber als unbenutzbar markiert |
-| `num_docks_disabled`   | Docks, die als defekt markiert sind                          |
+| Series                 | Meaning                                                     |
+| ---------------------- | ----------------------------------------------------------- |
+| `num_bikes_available`  | Currently dockable, rentable bikes                          |
+| `num_ebikes_available` | Subset of available bikes that are e-bikes                  |
+| `num_bikes_disabled`   | Bikes physically at the station but marked unusable         |
+| `num_docks_disabled`   | Docks marked as broken                                      |
 
-Format: Liste von `{Start: ISO_datetime, Value: int}`-Records.
+Format: a list of `{Start: ISO_datetime, Value: int}` records.
 
-### Sampling-Semantik: Change-Point-Kompression
+### Sampling semantics: change-point compression
 
-Der Publisher (Zenodo-Beschreibung) bestätigt: der GBFS-Station-Status-Feed wird alle 5 Minuten gepollt, ein Record wird aber **nur dann geschrieben, wenn sich mindestens einer der vier Zähler seit dem letzten Poll geändert hat**. Das ist Absicht, kein Datenqualitätsproblem.
+The publisher (Zenodo description) confirms it: the GBFS station-status feed is polled every 5 minutes, but a record is written **only when at least one of the four counters has changed since the last poll**. This is by design, not a data-quality issue.
 
-Eigene Messungen bestätigen die 5-Minuten-Cadence:
+Our own measurements confirm the 5-minute cadence:
 
-- Minimales Inter-Event-Delta: **294 s** (≈ 5 min), entspricht der Poll-Frequenz.
-- Median-Inter-Event-Delta über alle Serien und alle Knoten: **600 s (10 min)**.
-- Pro Serie:
-  - `num_bikes_available`: Median 9,9 min (n=3.917.759 Events)
-  - `num_ebikes_available`: Median 10,0 min (n=3.043.035 Events)
-  - `num_bikes_disabled`: Median 24,9 min (n=520.308 Events) — seltener, weil Defekte selten passieren
-  - `num_docks_disabled`: Median 10,1 min (n=31.217 Events) — sehr selten in absoluter Häufigkeit
+- Minimum inter-event delta: **294 s** (≈ 5 min), matching the poll frequency.
+- Median inter-event delta over all series and all nodes: **600 s (10 min)**.
+- Per series:
+  - `num_bikes_available`: median 9.9 min (n=3,917,759 events)
+  - `num_ebikes_available`: median 10.0 min (n=3,043,035 events)
+  - `num_bikes_disabled`: median 24.9 min (n=520,308 events) — rarer, because breakdowns are rare
+  - `num_docks_disabled`: median 10.1 min (n=31,217 events) — very rare in absolute frequency
 
-> **Konsequenz fürs Modell**: Um die Zeitreihen als reguläre Time Series zu nutzen, auf ein festes Raster resamplen (z.B. 5-Minuten-Bins per Forward Fill). Der "aktuelle Wert" zum Zeitpunkt t ist der jüngste Record mit `Start ≤ t`.
+> **Consequence for the model**: to use the series as regular time series, resample onto a fixed grid (e.g. 5-minute bins via forward fill). The "current value" at time t is the most recent record with `Start ≤ t`.
 
-### Längen-Verteilung der Knoten-Zeitreihen
+### Length distribution of the node time series
 
-| Statistik | Wert |
+| Statistic | Value |
 |---|---|
-| Total ts-Points über alle Knoten | 7.521.171 |
-| Min Länge pro Serie | 1 |
-| Median Länge | 359 |
-| Mean Länge | 849,7 |
-| Max Länge | 5.407 |
+| Total ts points over all nodes | 7,521,171 |
+| Min length per series | 1 |
+| Median length | 359 |
+| Mean length | 849.7 |
+| Max length | 5,407 |
 
-Die Streuung ist groß: aktive Stationen haben mehrere Tausend Events, schlafende Stationen fast keine. Das wirkt sich auf die Train/Val-Split-Strategie aus (siehe unten).
+The spread is large: active stations have several thousand events, dormant stations almost none. This affects the train/val split strategy (see below).
 
-## 2. Kanten-Schema (`graph_edges.json`)
+## 2. Edge schema (`graph_edges.json`)
 
-Jedes Element ist eine gerichtete `super_edge` zwischen zwei Stationen und aggregiert **alle Trips** im Beobachtungsfenster von `from` nach `to`.
+Each element is a directed `super_edge` between two stations and aggregates **all trips** from `from` to `to` in the observation window.
 
-### Statische Felder pro Kante
+### Static fields per edge
 
-| Feld | Typ | Beschreibung |
+| Field | Type | Description |
 |---|---|---|
-| `from` | UUID | Quell-Station (verweist auf `station_id`) |
-| `to` | UUID | Ziel-Station (verweist auf `station_id`) |
-| `label` | string | Konstant `"super_edge"` für alle Kanten |
-| `start` | ISO datetime | Zeitpunkt der ersten Fahrt auf dieser Kante |
-| `end` | ISO datetime | Globales Fenster-Ende (`2024-06-14T00:00:00`) |
+| `from` | UUID | Source station (references `station_id`) |
+| `to` | UUID | Target station (references `station_id`) |
+| `label` | string | Constant `"super_edge"` for all edges |
+| `start` | ISO datetime | Time of the first ride on this edge |
+| `end` | ISO datetime | Global window end (`2024-06-14T00:00:00`) |
 
-### Dynamische Felder — `ts`-Block
+### Dynamic fields — the `ts` block
 
-Jede Kante trägt **sechs** Zeitreihen:
+Each edge carries **six** time series:
 
-| Serie            | Bedeutung                                         | Monoton?             |
-| ---------------- | ------------------------------------------------- | -------------------- |
-| `num_rides`      | Kumulative Gesamtzahl aller Fahrten auf der Kante | ja, nicht-fallend    |
-| `classic_rides`  | Kumulativ, Fahrten mit klassischem Rad            | ja, nicht-fallend    |
-| `electric_rides` | Kumulativ, Fahrten mit E-Bike                     | ja, nicht-fallend    |
-| `member_rides`   | Kumulativ, Fahrten von Member-Accounts            | ja, nicht-fallend    |
-| `casual_rides`   | Kumulativ, Fahrten von Casual-Accounts            | ja, nicht-fallend    |
-| `active_trips`   | Aktuell laufende Trips auf dieser Kante           | **nein, oszilliert** |
+| Series           | Meaning                                        | Monotone?             |
+| ---------------- | ---------------------------------------------- | --------------------- |
+| `num_rides`      | Cumulative total of all rides on the edge      | yes, non-decreasing   |
+| `classic_rides`  | Cumulative, rides on a classic bike            | yes, non-decreasing   |
+| `electric_rides` | Cumulative, rides on an e-bike                 | yes, non-decreasing   |
+| `member_rides`   | Cumulative, rides from member accounts         | yes, non-decreasing   |
+| `casual_rides`   | Cumulative, rides from casual accounts         | yes, non-decreasing   |
+| `active_trips`   | Currently ongoing trips on this edge           | **no, oscillates**    |
 
-> **Wichtig**: Die fünf `_rides`-Serien sind **kumulative Zähler**. Pro Event wird um genau 1 hochgezählt. Die Identität `num_rides = classic_rides + electric_rides = member_rides + casual_rides` lässt sich vermutlich zur Datenvalidierung nutzen.
+> **Important**: the five `_rides` series are **cumulative counters**. Each event increments by exactly 1. The identity `num_rides = classic_rides + electric_rides = member_rides + casual_rides` can presumably be used for data validation.
 >
-> `active_trips` ist ein **Inventur-Stand**, kein Zähler — der Wert geht bei Start eines Trips um 1 hoch und bei Ende um 1 runter. Beobachtetes Wertebereich-Sample über 500 Kanten: `[0, 85]`.
+> `active_trips` is an **inventory level**, not a counter — the value goes up by 1 when a trip starts and down by 1 when it ends. Observed value-range sample over 500 edges: `[0, 85]`.
 
-### Counter-Semantik für das Prediction Target
+### Counter semantics for the prediction target
 
-Da `num_rides` kumulativ ist, ergibt sich das pro-Fenster-Volumen einer Kante über die Differenz:
+Since `num_rides` is cumulative, an edge's per-window volume follows from the difference:
 
 ```
 rides_in_window(u, v, t, Δ) = num_rides[u→v] @ (t+Δ)  −  num_rides[u→v] @ t
 ```
 
-Das binäre Target laut Aufgabenstellung wird daraus: `Label = 1` wenn `rides_in_window > 0`, sonst `0`.
+The binary target per the assignment is then: `Label = 1` if `rides_in_window > 0`, else `0`.
 
-### Längen-Verteilung pro Kante (basierend auf `num_rides`)
+### Length distribution per edge (based on `num_rides`)
 
-| Statistik | Wert |
+| Statistic | Value |
 |---|---|
-| Total Trips (Summe letzter Counter-Werte) | 102.594 |
-| Min Trips pro Kante | 1 |
-| Median Trips pro Kante | 6 |
-| Mean Trips pro Kante | 18,2 |
-| Max Trips pro Kante | 468 |
-| Kanten mit < 5 Trips | 2.375 (**42,2 %**) |
+| Total trips (sum of last counter values) | 102,594 |
+| Min trips per edge | 1 |
+| Median trips per edge | 6 |
+| Mean trips per edge | 18.2 |
+| Max trips per edge | 468 |
+| Edges with < 5 trips | 2,375 (**42.2 %**) |
 
-Knapp die Hälfte aller Kanten ist sehr schwach besetzt. Das ist ein deutlicher Hinweis auf **Sparsity und Long-Tail**: wenige Kanten dominieren das Trip-Volumen, der Rest ist Rauschen oder seltene Verbindungen.
+Almost half of all edges are very sparsely populated. This is a clear sign of **sparsity and a long tail**: a few edges dominate the trip volume, the rest is noise or rare connections.
 
-### Inter-Event-Spacing auf `num_rides`
+### Inter-event spacing on `num_rides`
 
-| Stichprobe | Median | Mean |
+| Sample | Median | Mean |
 |---|---|---|
-| Alle Kanten, alle Events (n=96.968) | **5,81 h** | 22,9 h |
-| Nur Kanten mit ≥ 20 Trips (n=77.807) | **3,50 h** | 11,3 h |
+| All edges, all events (n=96,968) | **5.81 h** | 22.9 h |
+| Only edges with ≥ 20 trips (n=77,807) | **3.50 h** | 11.3 h |
 
-Sehr long-tailed: Mittelwerte liegen weit über den Medianen, weil inaktive Kanten und Nacht-Pausen die Verteilung nach oben ziehen. Aktive Kanten haben einen Median von 3,5 h zwischen zwei Trips.
+Very long-tailed: the means sit far above the medians, because inactive edges and overnight pauses pull the distribution upward. Active edges have a median of 3.5 h between two trips.
 
-## 3. Implikationen für Methodik und Modellierung
+## 3. Implications for method and modelling
 
 ### Preprocessing
 
-- **Knoten-ts auf festes Raster resamplen** (z.B. 5- oder 15-min Bins per Forward Fill).
-- **Kanten-ts: Differenzen statt Kumulativwerte** für ein Fenster-Volumen berechnen.
-- **Stations-Identität** über `station_id` (oder gleichwertig `nodeid`).
-- **`region_id`-Missing-Handling** explizit kodieren; nicht als zweite "71"-Kategorie missinterpretieren.
+- **Resample node ts onto a fixed grid** (e.g. 5- or 15-min bins via forward fill).
+- **Edge ts: use differences, not cumulative values** to get a window volume.
+- **Station identity** via `station_id` (or equivalently `nodeid`).
+- **`region_id` missing handling**: encode explicitly; don't misinterpret it as a second "71" category.
 
 ### Targets
 
-- **Binär**: `Δnum_rides > 0` im Zukunftsfenster pro (u, v).
-- **Regression** wäre ebenfalls möglich (`Δnum_rides` direkt), aber von der Aufgabenstellung nicht gefordert.
+- **Binary**: `Δnum_rides > 0` in the future window per (u, v).
+- **Regression** would also be possible (`Δnum_rides` directly), but is not required by the assignment.
 
-### Class Imbalance und Negative Sampling
+### Class imbalance and negative sampling
 
-42,2 % der Kanten haben < 5 Trips im Gesamtzeitraum. Auf einem Fenster von z.B. 30 Minuten gibt es pro `(u, v, t)` fast immer 0 Trips → Klassen-Imbalance ist extrem. Klassische Lösung: **Negative Sampling** (z.B. 1 positives Sample : k negative Samples) plus AP / MRR statt nur Accuracy.
+42.2 % of edges have < 5 trips over the whole period. On a window of, say, 30 minutes there are almost always 0 trips per `(u, v, t)` → class imbalance is extreme. The classic fix: **negative sampling** (e.g. 1 positive sample : k negative samples) plus AP / MRR instead of accuracy alone.
 
-### Train/Val/Test-Split
+### Train/val/test split
 
-- **Temporal**: erste 3 Wochen Training, vorletzte Woche Validation, letzte Woche Test. Random-Split wäre methodisch falsch (Leakage durch zeitliche Korrelation).
-- **Beobachtung**: Stationen mit kurzen Zeitreihen (length=1 oder sehr klein) eventuell ausschließen, da unter Information-Recovery-Threshold.
+- **Temporal**: first 3 weeks training, second-to-last week validation, last week test. A random split would be methodologically wrong (leakage through temporal correlation).
+- **Observation**: stations with short series (length=1 or very small) may be excluded, since they are below the information-recovery threshold.
 
-### Feature-Vorschlag
+### Feature proposal
 
-- **Statische Knoten-Features**: `capacity`, `lat`, `lon`, `region_id` (one-hot), optional abgeleitete räumliche Features (Distanz zum Schwerpunkt, Cluster-ID).
-- **Dynamische Knoten-Features**: Kurz-Fenster (z.B. letzte 30 Minuten) der vier ts-Serien, z.B. Mittelwert, Std, Trend, plus Tageszeit / Wochentag-Feature.
-- **Edge-Features**: historische Trip-Frequenz (`num_rides` total über bekanntes Fenster), Bike-Typ-Verhältnis (`electric_rides / num_rides`), Rider-Typ-Verhältnis (`member_rides / num_rides`).
+- **Static node features**: `capacity`, `lat`, `lon`, `region_id` (one-hot), optionally derived spatial features (distance to the centroid, cluster ID).
+- **Dynamic node features**: a short window (e.g. last 30 minutes) of the four ts series, e.g. mean, std, trend, plus a time-of-day / weekday feature.
+- **Edge features**: historical trip frequency (`num_rides` total over the known window), bike-type ratio (`electric_rides / num_rides`), rider-type ratio (`member_rides / num_rides`).
 
-### Kapazität vs. Trip-Volumen: geografische Konfundierung
+### Capacity vs. trip volume: geographic confounding
 
-Vollständige Analyse auf den 232 aktiven Stationen ergibt eine **negative** Korrelation zwischen Stationskapazität und Trip-Volumen:
+A full analysis on the 232 active stations shows a **negative** correlation between station capacity and trip volume:
 
-| Maß | Wert |
+| Measure | Value |
 |---|---|
-| Pearson r | −0,44 |
-| Spearman r | −0,58 |
+| Pearson r | −0.44 |
+| Spearman r | −0.58 |
 
-Dieser auf den ersten Blick kontraintuitive Befund ist **nicht kausal**, sondern durch den geografischen Standort konfundiert. Der aktive Teilgraph enthält zwei räumlich getrennte Populationen:
+This counterintuitive finding is **not causal** but confounded by geographic location. The active subgraph contains two spatially separate populations:
 
-- **Kleine Stationen (11–30 Docks) in Hoboken / Jersey City**: hochaktiv, Trips/Dock-Median ~90.
-- **Große Stationen (61–123 Docks) aus Manhattan**: nahezu inaktiv, Trips/Dock-Median ~0.
+- **Small stations (11–30 docks) in Hoboken / Jersey City**: highly active, median trips/dock ~90.
+- **Large stations (61–123 docks) from Manhattan**: nearly inactive, median trips/dock ~0.
 
-Die Top-5-Stationen nach Trips-pro-Dock (Newport Pkwy: 293,8; Newport PATH: 273,6; Hoboken Terminal: 216,9) bestätigen das Muster. Gleichzeitig haben die größten Stationen (E 40 St & Park Ave: 123 Docks, 11 Trips; West St & Chambers St: 115 Docks, 8 Trips) trotz enormer Kapazität praktisch keine Aktivität.
+The top-5 stations by trips-per-dock (Newport Pkwy: 293.8; Newport PATH: 273.6; Hoboken Terminal: 216.9) confirm the pattern. At the same time, the largest stations (E 40 St & Park Ave: 123 docks, 11 trips; West St & Chambers St: 115 docks, 8 trips) have practically no activity despite their huge capacity.
 
-**Konsequenz für Feature-Engineering**: `capacity` allein ist kein zuverlässiger Aktivitäts-Indikator. `lat`/`lon` trennen die beiden Cluster sauber und sind der stärkere Prädiktor. Im GCN-Branch spielt dies keine direkte Rolle — die Adjazenzmatrix mit historischen Trip-Frequenzen als Edge-Weights bildet die Cluster-Struktur von selbst ab.
+**Consequence for feature engineering**: `capacity` alone is not a reliable activity indicator. `lat`/`lon` separate the two clusters cleanly and are the stronger predictor. In the GCN branch this doesn't matter directly — the adjacency matrix with historical trip frequencies as edge weights captures the cluster structure on its own.
 
-## 4. Offene Fragen für die nächste Iteration
+## 4. Open questions for the next iteration
 
-- Stimmt die Identität `num_rides == classic_rides + electric_rides == member_rides + casual_rides` für alle Edges? → Schnelle Validierung möglich.
-- Wie verteilt sich `active_trips` über die Zeit (Tageszeit-Muster, Wochentag-Muster)? Könnte als zusätzliches Knoten-Feature dienen.
-- Reicht das 4-Wochen-Fenster für eine valide Validation/Test-Trennung, oder droht zu wenig Daten in der Test-Periode?
-- Wie sieht das räumliche Cluster-Muster aus (Manhattan, Brooklyn, Queens, …)?
+- Does the identity `num_rides == classic_rides + electric_rides == member_rides + casual_rides` hold for all edges? → Quick validation possible.
+- How does `active_trips` distribute over time (time-of-day pattern, weekday pattern)? Could serve as an extra node feature.
+- Is the 4-week window enough for a valid validation/test split, or is there too little data in the test period?
+- What does the spatial cluster pattern look like (Manhattan, Brooklyn, Queens, …)?
 
-## 5. Reproduzierbarkeit
+## 5. Reproducibility
 
-Voraussetzungen:
+Prerequisites:
 
 ```bash
 pip install ijson
 ```
 
-Datensatz lokal:
+Dataset locally:
 
 ```bash
 mkdir -p ~/Data/nyc-bike-sharing
@@ -219,7 +219,7 @@ curl -L -o graph_edges.json "https://zenodo.org/records/13846868/files/graph_edg
 curl -L -o graph_nodes.json "https://zenodo.org/records/13846868/files/graph_nodes.json?download=1"
 ```
 
-Skript-Skelett:
+Script skeleton:
 
 ```python
 import json, ijson, statistics
@@ -239,4 +239,4 @@ with open(f"{DATA}/graph_nodes.json", "rb") as f:
         pass
 ```
 
-Die vollständigen Analyse-Skripte (Strukturchecks, Längen-Verteilungen, Inter-Event-Deltas) werden ins Projekt-Code-Repo aufgenommen, sobald dieses angelegt ist.
+The full analysis scripts (structure checks, length distributions, inter-event deltas) will be added to the project code repo once it exists.

@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
 """
-Vergleichs-/Reporting-Skript fuer alle Modelle.
-===============================================
+Comparison / reporting script for all models.
+=============================================
 
-Sammelt die exportierten Vorhersagen (predictions/*.csv) von GraphMixer, LSTM und
-Hybridmodell ein und erzeugt die zwei finalen Vergleichstabellen ueber das
-gemeinsame Eval-Modul:
+Collects the exported predictions (predictions/*.csv) from GraphMixer, LSTM and
+the hybrid model, and produces the two final comparison tables via the shared
+eval module:
 
-  Vergleich 1 (binaer): Hybrid vs. GraphMixer   -> AUC, AP, F1, Accuracy
-  Vergleich 2 (count) : Hybrid vs. LSTM         -> MSE, MAE, RMSE
+  Comparison 1 (binary): Hybrid vs. GraphMixer   -> AUC, AP, F1, Accuracy
+  Comparison 2 (count) : Hybrid vs. LSTM         -> MSE, MAE, RMSE
 
-Fehlende Vorhersagen (Modell noch nicht gelaufen) werden uebersprungen und als
-"-" markiert. Ergebnis: Konsole + results/comparison.md
+Missing predictions (a model hasn't run yet) are skipped and marked with "-".
+Output: console + results/comparison.md
 
-Aufruf:  python compare_models.py
+Run:  python compare_models.py
 """
 import os, sys
 import pandas as pd
@@ -24,7 +24,7 @@ from shared_eval import SharedLinkEval   # noqa: E402
 
 SPLITS = ["val", "test"]
 
-# Modell -> (Pfadvorlage relativ zum Repo, welche Aufgaben es liefert)
+# model -> (path template relative to the repo, which tasks it provides)
 MODELS = {
     "GraphMixer": ("graphmixer/model/predictions/graphmixer_pred_{split}.csv", {"binary"}),
     "LSTM":       ("lstm/predictions/lstm_pred_{split}.csv",                    {"count"}),
@@ -38,7 +38,7 @@ def _load(path_tmpl, split):
 
 
 def evaluate_all(ev):
-    res = {}   # (model, split) -> dict mit Metriken
+    res = {}   # (model, split) -> dict of metrics
     for name, (tmpl, tasks) in MODELS.items():
         for split in SPLITS:
             df = _load(tmpl, split)
@@ -61,8 +61,8 @@ def _fmt(res, model, split, key, nd=3):
 
 
 def binary_table(res):
-    rows = ["## Vergleich 1 – Binär (Link ja/nein)", "",
-            "| Modell | Split | AUC | AP | F1 | Accuracy |",
+    rows = ["## Comparison 1 – binary (link yes/no)", "",
+            "| Model | Split | AUC | AP | F1 | Accuracy |",
             "|---|---|---|---|---|---|"]
     for model in ["Hybrid", "GraphMixer"]:
         for split in SPLITS:
@@ -73,8 +73,8 @@ def binary_table(res):
 
 
 def count_table(res):
-    rows = ["## Vergleich 2 – Count (Fahrtenzahl)", "",
-            "| Modell | Split | MSE | MAE | RMSE |",
+    rows = ["## Comparison 2 – count (number of rides)", "",
+            "| Model | Split | MSE | MAE | RMSE |",
             "|---|---|---|---|---|"]
     for model in ["Hybrid", "LSTM"]:
         for split in SPLITS:
@@ -89,16 +89,16 @@ def main():
 
     present = sorted({m for (m, _s) in res})
     missing = [m for m in MODELS if m not in present]
-    status = (f"Vorhandene Vorhersagen: {', '.join(present) if present else 'keine'}"
-              + (f" | fehlend: {', '.join(missing)}" if missing else ""))
+    status = (f"Available predictions: {', '.join(present) if present else 'none'}"
+              + (f" | missing: {', '.join(missing)}" if missing else ""))
 
-    out = "# Modellvergleich\n\n" + status + "\n\n" + binary_table(res) + "\n\n" + count_table(res) + "\n"
+    out = "# Model comparison\n\n" + status + "\n\n" + binary_table(res) + "\n\n" + count_table(res) + "\n"
     print(out)
 
     res_dir = os.path.join(HERE, "results"); os.makedirs(res_dir, exist_ok=True)
     with open(os.path.join(res_dir, "comparison.md"), "w", encoding="utf-8") as f:
         f.write(out)
-    print(f"[geschrieben] {os.path.join(res_dir, 'comparison.md')}")
+    print(f"[written] {os.path.join(res_dir, 'comparison.md')}")
 
 
 if __name__ == "__main__":

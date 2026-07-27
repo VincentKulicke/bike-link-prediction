@@ -1,165 +1,165 @@
 ---
-tags: [projekt, baseline, link-prediction, didaktik, graphmixer]
-status: in Bearbeitung
-erstellt: 2026-06-13
-gehört-zu: "[[Link Prediction on Hybrid Graph + Time Series Data.md|Link Prediction Projekt]]"
+tags: [project, baseline, link-prediction, explainer, graphmixer]
+status: in progress
+created: 2026-06-13
+belongs-to: "[[Link Prediction on Hybrid Graph + Time Series Data.md|Link Prediction project]]"
 ---
 
-# GraphMixer – Grundlagen verständlich erklärt
+# GraphMixer – the basics, explained plainly
 
-Dieses Dokument erklärt das **GraphMixer-Modell** von Grund auf, sodass es auch ohne Vorwissen in Graph-Deep-Learning verständlich ist. GraphMixer ist in unserem Projekt die **Temporal-Graph-Baseline**, gegen die wir unser eigenes Hybridmodell beim binären Vergleich (Link ja/nein) antreten lassen.
+This document explains the **GraphMixer model** from the ground up, so it makes sense even without a background in graph deep learning. In our project GraphMixer is the **temporal-graph baseline** that we pit our own hybrid model against in the binary comparison (link yes/no).
 
-> Quelle: Cong et al., *„Do We Really Need Complicated Model Architectures for Temporal Networks?"*, ICLR 2023. Die Kernbotschaft des Papers steckt schon im Titel: Ein **bewusst einfaches** Modell schlägt überraschend oft die komplizierten.
-
----
-
-## 1. Das Problem, das GraphMixer löst
-
-Stell dir ein Netzwerk vor, in dem ständig **Verbindungen entstehen** – bei uns: Fahrten zwischen Bike-Sharing-Stationen. Die Frage lautet:
-
-> *Wird zwischen Station A und Station B in der nächsten halben Stunde eine Fahrt stattfinden – ja oder nein?*
-
-Das nennt man **Link Prediction** (Verbindungsvorhersage). Das Besondere: Das Netzwerk ist **dynamisch**, es verändert sich über die Zeit. Eine Verbindung, die morgens um 8 Uhr typisch ist (Pendler zum Bahnhof), gibt es nachts um 3 Uhr nicht. Ein Modell muss also nicht nur *wer-mit-wem* lernen, sondern auch *wann*.
+> Source: Cong et al., *"Do We Really Need Complicated Model Architectures for Temporal Networks?"*, ICLR 2023. The paper's core message is already in the title: a **deliberately simple** model surprisingly often beats the complicated ones.
 
 ---
 
-## 2. Die Grundbegriffe (Schritt für Schritt)
+## 1. The problem GraphMixer solves
+
+Picture a network where **connections keep forming** — for us: rides between bike-sharing stations. The question is:
+
+> *Will there be a ride between station A and station B in the next half hour — yes or no?*
+
+This is called **link prediction**. What makes it special: the network is **dynamic**, it changes over time. A connection that is typical at 8 a.m. (commuters to the station) doesn't exist at 3 a.m. So a model has to learn not only *who-with-whom* but also *when*.
+
+---
+
+## 2. The basics (step by step)
 
 ### Graph
-Ein **Graph** ist eine Sammlung von Punkten und Verbindungen.
-- **Knoten** (engl. *node*): die Punkte. Bei uns: die Bike-Stationen.
-- **Kante** (engl. *edge*): eine Verbindung zwischen zwei Knoten. Bei uns: eine Fahrt von Station A zu Station B.
+A **graph** is a collection of points and connections.
+- **Node**: the points. For us: the bike stations.
+- **Edge**: a connection between two nodes. For us: a ride from station A to station B.
 
-Bildlich: eine Landkarte, auf der Stationen Punkte sind und jede gefahrene Strecke eine Linie zwischen zwei Punkten.
+Visually: a map where stations are points and each ride is a line between two points.
 
-### Statischer vs. temporaler Graph
-- **Statischer Graph**: Die Verbindungen sind „eingefroren". Es gibt eine Linie zwischen A und B oder nicht – ohne Zeitangabe.
-- **Temporaler Graph**: Jede Kante hat einen **Zeitstempel**. Eine Kante ist nicht „A–B", sondern „A–B um 08:14 Uhr", „A–B um 08:21 Uhr", usw. Jede einzelne Fahrt ist ein eigenes Ereignis mit Uhrzeit.
+### Static vs. temporal graph
+- **Static graph**: the connections are "frozen". There is a line between A and B or not — with no time information.
+- **Temporal graph**: every edge has a **timestamp**. An edge isn't "A–B", it's "A–B at 08:14", "A–B at 08:21", and so on. Each individual ride is its own event with a time.
 
-GraphMixer arbeitet mit einem **temporalen Graphen**. Genau deshalb brauchen wir für diese Baseline die **einzelnen, zeitgestempelten Fahrten** aus dem Original-Citi-Bike-Datensatz – nicht unsere aggregierte „Superedge", die alle Fahrten zwischen A und B nur zu einer Zahl zusammenfasst.
+GraphMixer works with a **temporal graph**. That is exactly why, for this baseline, we need the **individual, timestamped rides** from the original Citi Bike dataset — not our aggregated "super-edge", which collapses all rides between A and B into a single number.
 
-### Knoten-Features
-Jeder Knoten kann **Eigenschaften** mitbringen, in Zahlen ausgedrückt. Bei einer Station z. B. Kapazität (Anzahl Docks), geografische Lage. Solche Zahlenlisten nennt man **Feature-Vektor**.
+### Node features
+Every node can carry **properties** expressed as numbers. For a station, e.g. capacity (number of docks) and geographic location. Such lists of numbers are called a **feature vector**.
 
 ### Embedding
-Ein **Embedding** ist eine kompakte Zahlenliste, die ein Modell selbst lernt, um etwas „in eigenen Worten" zu beschreiben. Statt „Station Grove St PATH" zu sagen, beschreibt das Modell die Station durch z. B. 100 Zahlen, die ihr Verhalten zusammenfassen (etwa „sehr aktiver Pendler-Hub, morgens stark nachgefragt"). Zwei Stationen mit ähnlichem Verhalten bekommen ähnliche Embeddings.
+An **embedding** is a compact list of numbers that a model learns itself to describe something "in its own words". Instead of saying "Grove St PATH station", the model describes the station with, say, 100 numbers that summarize its behavior (e.g. "very active commuter hub, high demand in the morning"). Two stations with similar behavior get similar embeddings.
 
 ---
 
-## 3. Die Grundidee von GraphMixer in einem Satz
+## 3. GraphMixer's core idea in one sentence
 
-> Um vorherzusagen, ob A und B sich bald verbinden, schaut GraphMixer sich die **jüngste Vergangenheit beider Stationen** an – *mit wem* und *wann* hatten sie zuletzt Verbindungen – und leitet daraus ab, wie wahrscheinlich eine neue Verbindung A–B ist.
+> To predict whether A and B will connect soon, GraphMixer looks at the **recent past of both stations** — *with whom* and *when* they last had connections — and infers from that how likely a new A–B connection is.
 
-Das Clevere: GraphMixer verzichtet bewusst auf komplizierte Bauteile (keine „Aufmerksamkeit", kein „Gedächtnis-Modul", keine wiederkehrenden Netze). Es nutzt fast nur das **einfachste neuronale Bauteil überhaupt** – das MLP. Trotzdem ist es sehr konkurrenzfähig.
+The clever bit: GraphMixer deliberately skips complicated components (no "attention", no "memory module", no recurrent networks). It uses almost exclusively the **simplest neural building block there is** — the MLP. And it is still very competitive.
 
-### Was ist ein MLP?
-**MLP** = *Multilayer Perceptron*, das klassische, einfachste neuronale Netz: Es nimmt eine Zahlenliste als Eingabe, multipliziert und addiert sie über mehrere „Schichten" und gibt eine neue Zahlenliste aus. Man kann es sich als eine **flexible mathematische Funktion** vorstellen, die aus Beispielen lernt, Eingaben in nützliche Ausgaben zu übersetzen.
-
----
-
-## 4. Der Aufbau: drei Bausteine
-
-GraphMixer besteht aus drei Teilen. Wir gehen sie der Reihe nach durch.
-
-### Baustein 1 – Der Link-Encoder („Was ist zuletzt passiert?")
-
-Dieser Teil fasst die **jüngsten Verbindungen** eines Knotens zusammen.
-
-So läuft es ab:
-1. Für eine Station nimmt man ihre **letzten K Fahrten** (z. B. die letzten 20 Ereignisse).
-2. Jede dieser Fahrten wird zu einer Zeile in einer Tabelle. Die Zeile enthält:
-   - die **Merkmale** der Fahrt (z. B. zu welcher Station, ggf. weitere Eigenschaften),
-   - eine **Zeit-Kodierung** – also „wie lange ist das her?" in eine für das Modell lesbare Zahlenform übersetzt.
-3. So entsteht eine **Tabelle**: Zeilen = die letzten K Fahrten, Spalten = die Merkmale + Zeitinfo.
-4. Auf diese Tabelle wird ein **MLP-Mixer** angewendet (siehe Abschnitt 5), der die Tabelle zu einem einzigen Embedding verdichtet: „So sah die jüngste Aktivität dieser Station aus."
-
-**Wichtige Design-Entscheidung – die feste Zeit-Kodierung:** Wie „wie lange her" in Zahlen übersetzt wird, ist bei GraphMixer **fest vorgegeben** und wird *nicht* mitgelernt. Die Autoren fanden heraus, dass lernbare Zeit-Kodierungen das Training instabil machen. Die feste Variante (eine mathematische Funktion mit Kosinus-Schwingungen unterschiedlicher Geschwindigkeit) ist robuster. Das ist einer der Gründe, warum GraphMixer so stabil und einfach ist.
-
-### Baustein 2 – Der Node-Encoder („Wie aktiv ist die Station generell?")
-
-Dieser Teil beschreibt die **allgemeine Identität und jüngste Aktivität** eines Knotens, unabhängig von der genauen Reihenfolge der Ereignisse.
-
-So läuft es ab:
-- Man schaut die **Nachbarn** der Station im letzten Zeitfenster an (alle Stationen, mit denen sie kürzlich verbunden war) und bildet einen **Durchschnitt** ihrer Merkmale.
-- Das ergibt eine kompakte Zusammenfassung: „Diese Station ist zuletzt stark/wenig genutzt worden und hängt mit diesen Arten von Stationen zusammen."
-
-Während der Link-Encoder die *zeitliche Abfolge* betont, liefert der Node-Encoder das *Gesamtbild* der Station.
-
-### Baustein 3 – Der Link-Klassifikator („Verbindung ja oder nein?")
-
-Jetzt kommt die eigentliche Vorhersage für ein Paar (A, B):
-1. Man nimmt die Embeddings beider Stationen (jeweils aus Link- und Node-Encoder).
-2. Man **fügt sie zusammen** (verkettet die Zahlenlisten von A und B).
-3. Ein abschließendes **MLP** liest diese kombinierte Beschreibung und gibt eine **Wahrscheinlichkeit** aus: Wie wahrscheinlich entsteht zwischen A und B eine Verbindung?
-4. Liegt die Wahrscheinlichkeit über einer Schwelle, lautet die Vorhersage „Link = ja".
+### What is an MLP?
+**MLP** = *multilayer perceptron*, the classic, simplest neural network: it takes a list of numbers as input, multiplies and adds them across several "layers", and outputs a new list of numbers. Think of it as a **flexible mathematical function** that learns from examples how to translate inputs into useful outputs.
 
 ---
 
-## 5. Das Herzstück: der MLP-Mixer
+## 4. The build: three components
 
-Der Name „GraphMixer" kommt von diesem Bauteil. Es stammt ursprünglich aus der Bildverarbeitung (MLP-Mixer, 2021) und ersetzt dort kompliziertere Mechanismen durch zwei einfache, abwechselnd angewandte MLPs.
+GraphMixer has three parts. We'll go through them in order.
 
-Erinnerung: Der Link-Encoder hat eine **Tabelle** gebaut – Zeilen = letzte Fahrten, Spalten = Merkmale. Der MLP-Mixer mischt diese Tabelle auf **zwei Arten**:
+### Component 1 – the link encoder ("what happened recently?")
 
-1. **Token-Mixing („spaltenweise mischen")**
-Mischt Information **über die verschiedenen Fahrten hinweg** (über die Zeilen). Beantwortet: *Wie hängen die einzelnen jüngsten Ereignisse miteinander zusammen?* Beispiel: „Drei Fahrten kurz hintereinander zur selben Station" wird als Muster erkennbar.
+This part summarizes a node's **most recent connections**.
 
-2. **Channel-Mixing („zeilenweise mischen")**
-Mischt Information **über die verschiedenen Merkmale hinweg** (über die Spalten). Beantwortet: *Wie hängen die Eigenschaften innerhalb einer Fahrt zusammen?*
+How it works:
+1. For a station, take its **last K rides** (e.g. the last 20 events).
+2. Each of those rides becomes a row in a table. The row contains:
+   - the **features** of the ride (e.g. to which station, plus any further properties),
+   - a **time encoding** — i.e. "how long ago was this?" translated into a number form the model can read.
+3. This gives a **table**: rows = the last K rides, columns = the features + time info.
+4. An **MLP-Mixer** is applied to this table (see section 5), condensing it into a single embedding: "this is what this station's recent activity looked like."
 
-Diese beiden Misch-Schritte werden abwechselnd ausgeführt. Das Ergebnis ist eine kompakte Zusammenfassung der gesamten jüngsten Aktivität – erzeugt **nur mit MLPs**, ohne die rechenintensiven Mechanismen anderer Modelle.
+**Key design choice – the fixed time encoding:** how "how long ago" is turned into numbers is **fixed** in GraphMixer and is *not* learned. The authors found that learnable time encodings destabilize training. The fixed version (a mathematical function with cosine waves of different speeds) is more robust. This is one reason GraphMixer is so stable and simple.
 
-**Analogie:** Stell dir eine Tabelle mit Notizen vor. Token-Mixing liest *spaltenweise* (vergleicht dieselbe Eigenschaft über alle Ereignisse), Channel-Mixing liest *zeilenweise* (betrachtet alle Eigenschaften eines Ereignisses zusammen). Durch wechselndes Lesen in beide Richtungen entsteht ein Gesamtverständnis der Tabelle.
+### Component 2 – the node encoder ("how active is the station in general?")
+
+This part describes a node's **general identity and recent activity**, independent of the exact order of events.
+
+How it works:
+- Look at the station's **neighbors** in the last time window (all stations it was recently connected to) and take an **average** of their features.
+- This gives a compact summary: "this station was heavily/lightly used recently and is connected to these kinds of stations."
+
+Where the link encoder emphasizes the *temporal sequence*, the node encoder gives the *big picture* of the station.
+
+### Component 3 – the link classifier ("connection yes or no?")
+
+Now the actual prediction for a pair (A, B):
+1. Take the embeddings of both stations (each from the link and node encoders).
+2. **Join them** (concatenate the number lists of A and B).
+3. A final **MLP** reads this combined description and outputs a **probability**: how likely is a connection between A and B?
+4. If the probability exceeds a threshold, the prediction is "link = yes".
 
 ---
 
-## 6. Warum GraphMixer einfacher ist als TGN
+## 5. The heart: the MLP-Mixer
 
-In unserer Aufgabe wurde GraphMixer ausdrücklich empfohlen, weil es **leichter zu implementieren** ist als TGN. Der Unterschied:
+The name "GraphMixer" comes from this component. It originally comes from computer vision (MLP-Mixer, 2021), where it replaces more complicated mechanisms with two simple MLPs applied in alternation.
 
-| Eigenschaft | TGN (komplex) | GraphMixer (einfach) |
+Recall: the link encoder built a **table** — rows = recent rides, columns = features. The MLP-Mixer mixes this table in **two ways**:
+
+1. **Token mixing ("mix column-wise")**
+Mixes information **across the different rides** (across the rows). Answers: *how do the individual recent events relate to each other?* Example: "three rides in quick succession to the same station" becomes a recognizable pattern.
+
+2. **Channel mixing ("mix row-wise")**
+Mixes information **across the different features** (across the columns). Answers: *how do the properties within a single ride relate to each other?*
+
+These two mixing steps are applied in alternation. The result is a compact summary of the entire recent activity — produced **with MLPs only**, without the compute-heavy mechanisms of other models.
+
+**Analogy:** picture a table of notes. Token mixing reads *column-wise* (compares the same property across all events), channel mixing reads *row-wise* (looks at all properties of an event together). By reading in both directions in turn, an overall understanding of the table emerges.
+
+---
+
+## 6. Why GraphMixer is simpler than TGN
+
+In our assignment GraphMixer was explicitly recommended because it is **easier to implement** than TGN. The difference:
+
+| Property | TGN (complex) | GraphMixer (simple) |
 |---|---|---|
-| **Gedächtnis-Modul** | ja – speichert pro Knoten einen fortlaufend aktualisierten Zustand | **nein** |
-| **Wiederkehrende Netze (RNN/GRU)** | ja | **nein** |
-| **Aufmerksamkeit (Attention)** | ja | **nein** |
-| **Zeit-Kodierung** | gelernt | **fest** (stabiler) |
-| **Hauptbauteil** | mehrere zusammenspielende Module | fast nur **MLPs** |
+| **Memory module** | yes – stores a continuously updated state per node | **no** |
+| **Recurrent networks (RNN/GRU)** | yes | **no** |
+| **Attention** | yes | **no** |
+| **Time encoding** | learned | **fixed** (more stable) |
+| **Main building block** | several interacting modules | almost only **MLPs** |
 
-Weniger bewegliche Teile bedeutet: weniger, was schiefgehen kann, schnelleres Training, einfacheres Debugging. Genau das macht GraphMixer zur idealen, soliden Baseline.
-
----
-
-## 7. Wie GraphMixer in unser Projekt passt
-
-- **Rolle:** Temporal-Graph-Baseline für den **binären Vergleich** (Link ja/nein).
-- **Eingabe:** der **temporale Graph** aus einzelnen, zeitgestempelten Fahrten `(Start, Ziel, Zeitpunkt)` – aus dem Original-Citi-Bike-Datensatz für Mai–Juni 2024, gefiltert auf dieselben aktiven Stationen wie unser Hauptdatensatz.
-- **Ausgabe:** pro Stationspaar und Zeitfenster eine Wahrscheinlichkeit für „Verbindung ja/nein".
-- **Vergleich:** GraphMixer (nur binär) gegen den **Binär-Kopf unseres Hybridmodells**. Für unser Modell gilt dabei: `Anzahl Fahrten > 0` ⇒ „Link = ja".
-- **Metriken:** AUC, AP, Accuracy/F1 (siehe [[Konzeptdokument.md|Konzeptdokument]]).
-
-Wichtig: GraphMixer macht **keine Zählvorhersage** (wie viele Fahrten). Den Count-Vergleich übernimmt die separate **LSTM-Baseline**. GraphMixer ist also bewusst nur für die *eine* der beiden Aufgaben zuständig.
+Fewer moving parts means: less that can go wrong, faster training, easier debugging. That is exactly what makes GraphMixer the ideal, solid baseline.
 
 ---
 
-## 8. Stärken und Grenzen
+## 7. How GraphMixer fits our project
 
-**Stärken**
-- Einfach zu implementieren und zu trainieren (kaum komplexe Module).
-- Stabil dank fester Zeit-Kodierung.
-- Trotz Einfachheit sehr konkurrenzfähig – eine faire, ernstzunehmende Baseline.
-- Nutzt die zeitliche Information echter Einzel-Ereignisse, nicht nur Aggregate.
+- **Role:** temporal-graph baseline for the **binary comparison** (link yes/no).
+- **Input:** the **temporal graph** of individual, timestamped rides `(start, end, time)` — from the original Citi Bike dataset for May–June 2024, filtered to the same active stations as our main dataset.
+- **Output:** per station pair and time window, a probability for "connection yes/no".
+- **Comparison:** GraphMixer (binary only) against the **binary head of our hybrid model**. For our model, `number of rides > 0` ⇒ "link = yes".
+- **Metrics:** AUC, AP, Accuracy/F1 (see the [[Konzeptdokument.md|concept document]]).
 
-**Grenzen**
-- Kein explizites Langzeit-Gedächtnis pro Knoten (betrachtet nur die letzten K Ereignisse).
-- Rein **binär** – beantwortet nicht „wie viele Fahrten".
-- Nutzt **keine kontinuierlichen Knoten-Zeitreihen** (wie Fahrrad-Verfügbarkeit). Genau diese Lücke füllt unser Hybridmodell – und ist der Grund, warum wir erwarten, GraphMixer beim hybriden Problem zu übertreffen.
+Important: GraphMixer makes **no count prediction** (how many rides). The count comparison is handled by the separate **LSTM baseline**. So GraphMixer deliberately covers only *one* of the two tasks.
 
 ---
 
-## 9. Kurz-Zusammenfassung (für den eiligen Leser)
+## 8. Strengths and limits
 
-- GraphMixer sagt voraus, ob zwischen zwei Knoten bald eine Verbindung entsteht.
-- Es schaut auf die **letzten Ereignisse** beider Knoten, kodiert „wann" mit einer **festen** Zeitfunktion und verdichtet alles mit einem **MLP-Mixer** (zwei einfache Misch-Schritte: über Ereignisse und über Merkmale).
-- Drei Bausteine: **Link-Encoder** (jüngste Aktivität), **Node-Encoder** (Gesamtbild), **Link-Klassifikator** (Vorhersage).
-- Bewusst **einfacher als TGN** (kein Gedächtnis, keine Attention, keine RNNs) – ideal als Baseline.
-- In unserem Projekt: **binäre Temporal-Graph-Baseline** auf den zeitgestempelten Einzelfahrten.
+**Strengths**
+- Easy to implement and train (hardly any complex modules).
+- Stable thanks to the fixed time encoding.
+- Very competitive despite its simplicity — a fair, serious baseline.
+- Uses the temporal information of real individual events, not just aggregates.
+
+**Limits**
+- No explicit long-term memory per node (only looks at the last K events).
+- Purely **binary** — doesn't answer "how many rides".
+- Uses **no continuous node time series** (like bike availability). This is exactly the gap our hybrid model fills — and the reason we expect to beat GraphMixer on the hybrid problem.
+
+---
+
+## 9. Quick summary (for the reader in a hurry)
+
+- GraphMixer predicts whether a connection between two nodes will form soon.
+- It looks at the **recent events** of both nodes, encodes "when" with a **fixed** time function, and condenses everything with an **MLP-Mixer** (two simple mixing steps: across events and across features).
+- Three components: **link encoder** (recent activity), **node encoder** (big picture), **link classifier** (prediction).
+- Deliberately **simpler than TGN** (no memory, no attention, no RNNs) — ideal as a baseline.
+- In our project: the **binary temporal-graph baseline** on the timestamped individual rides.

@@ -1,143 +1,143 @@
 ---
-tags: [projekt, methodik, link-prediction]
-status: aktiv
-erstellt: 2026-05-12
-projekt: Link Prediction on Hybrid Graph + Time Series Data
+tags: [project, methodology, link-prediction]
+status: active
+created: 2026-05-12
+project: Link Prediction on Hybrid Graph + Time Series Data
 ---
 
-# Methoden-Bewertung: GCN vs. GraphSAGE und GRU vs. 1D-CNN
+# Methods assessment: GCN vs. GraphSAGE and GRU vs. 1D-CNN
 
-Methodische Argumentation zur Wahl der beiden Branches in der vorgeschlagenen Architektur. Grundlage ist die [[Datenanalyse.md|Datenanalyse]] (nach Filterung 232 aktive Stationen, 5.626 Kanten, mittlerer Grad 48,5, vier Knoten-Zeitreihen pro Station, sechs Kanten-Zeitreihen, Beobachtungsfenster 4 Wochen). Aufgabenstellung in [[Link Prediction on Hybrid Graph + Time Series Data.md|Hauptdatei]].
+The reasoning behind the choice of the two branches in the proposed architecture. It builds on the [[Datenanalyse.md|data analysis]] (after filtering: 232 active stations, 5,626 edges, mean degree 48.5, four node time series per station, six edge time series, a 4-week observation window). The task is described in the [[Link Prediction on Hybrid Graph + Time Series Data.md|main file]].
 
-> **Entscheidung (Stand 2026-06-03):** Das Team hat sich für **GraphSAGE + GRU** als primäre Architektur entschieden, übereinstimmend mit dem [[Konzeptdokument.md|Konzeptdokument]]. GCN und 1D-CNN sind als dokumentierte Alternativen und Ablations-Varianten eingeplant. Dieses Dokument hält den vollständigen Abwägungsprozess fest, damit die Wahl im Konzept und in der Präsentation belastbar begründet ist.
+> **Decision (as of 2026-06-03):** the team chose **GraphSAGE + GRU** as the primary architecture, in line with the [[Konzeptdokument.md|concept document]]. GCN and 1D-CNN are planned as documented alternatives and ablation variants. This document records the full trade-off so the choice is well argued in the concept and the presentation.
 
-## 1. Graph-Branch: GCN vs. GraphSAGE
+## 1. Graph branch: GCN vs. GraphSAGE
 
-### Eckdaten des Graphen
+### Graph facts
 
-- 232 aktive Knoten nach Filterung der isolierten Stationen (klein nach GNN-Maßstäben).
-- 5.626 gerichtete Kanten, mittlerer Gesamtgrad ≈ 48,5 — ein **kleiner, dichter** Teilgraph.
-- Edge Weights aus historischer Trip-Frequenz sind verfügbar und explizit gefordert.
-- Stationen-Set bleibt über den Beobachtungszeitraum praktisch konstant.
+- 232 active nodes after filtering out isolated stations (small by GNN standards).
+- 5,626 directed edges, mean total degree ≈ 48.5 — a **small but dense** subgraph.
+- Edge weights from historical trip frequency are available and explicitly required.
+- The set of stations stays practically constant over the observation window.
 
-### GCN — Stärken in diesem Setup
+### GCN — strengths in this setup
 
-- **Edge Weights nativ unterstützt** über die gewichtete Adjazenzmatrix. Das aus der Aufgabenstellung geforderte Signal (Trip-Frequenz als Edge Weight) lässt sich ohne Workaround verwenden.
-- **Voll-Batch-trainierbar**: Bei 2.213 Knoten passt der gesamte Graph in jedes GPU-Memory. Kein Sampling-Overhead, deterministisches Training.
-- **Wenige Hyperparameter**: schnelles Konzept, schnelles Debugging.
-- **Glättet stark**, was bei starker räumlicher Homophilie (nahe Stationen verhalten sich ähnlich) hilft.
+- **Edge weights supported natively** via the weighted adjacency matrix. The signal required by the assignment (trip frequency as an edge weight) can be used without a workaround.
+- **Full-batch trainable**: with 2,213 nodes the whole graph fits in any GPU memory. No sampling overhead, deterministic training.
+- **Few hyperparameters**: quick to spec, quick to debug.
+- **Smooths strongly**, which helps under strong spatial homophily (nearby stations behave similarly).
 
-### GCN — Schwächen
+### GCN — weaknesses
 
-- **Transduktiv**: neue Stationen schwierig. Hier irrelevant, da geschlossenes Stationen-Set.
-- **Über-Glättung** bei tieferen Architekturen. Bei zwei Hops kaum spürbar.
-- **Behandelt alle Nachbarn gleich** modulo Edge Weight. Keine gelernte Bewertung der Nachbarn.
+- **Transductive**: new stations are hard. Irrelevant here, since the station set is closed.
+- **Over-smoothing** in deeper architectures. Barely noticeable at two hops.
+- **Treats all neighbors equally** modulo the edge weight. No learned weighting of neighbors.
 
-### GraphSAGE — Stärken in diesem Setup
+### GraphSAGE — strengths in this setup
 
-- **Inductive Capability**. Funktioniert mit neuen Knoten. Hier kein Mehrwert.
-- **Verschiedene Aggregatoren** (mean, max-pool, LSTM): bietet Modellierungs-Flexibilität, falls das konkrete Aggregat-Muster wichtig ist.
-- **Mini-Batching mit Neighbor Sampling**: skaliert auf große Graphen. Bei dieser Größe unnötig.
-- **Self-Concat**: trennt eigenes Feature explizit von Nachbar-Aggregat, reduziert Über-Glättung leicht.
+- **Inductive capability**. Works with new nodes. No added value here.
+- **Several aggregators** (mean, max-pool, LSTM): modelling flexibility if the exact aggregation pattern matters.
+- **Mini-batching with neighbor sampling**: scales to large graphs. Unnecessary at this size.
+- **Self-concat**: keeps a node's own feature explicitly separate from the neighbor aggregate, slightly reducing over-smoothing.
 
-### GraphSAGE — Schwächen in diesem Setup
+### GraphSAGE — weaknesses in this setup
 
-- **Edge Weights nicht nativ**. Erfordert manuelles Feature-Engineering, um die Trip-Frequenz einzubringen.
-- **Mehr Hyperparameter** (Sample-Größen pro Layer, Aggregator-Wahl).
-- **Stochastik im Training** durch Sampling, erschwert reproduzierbare Ergebnisse.
+- **Edge weights not native**. Requires manual feature engineering to bring in the trip frequency.
+- **More hyperparameters** (per-layer sample sizes, aggregator choice).
+- **Stochastic training** through sampling, which makes reproducible results harder.
 
-### Entscheidung Graph-Branch
+### Decision, graph branch
 
-**GraphSAGE als gewählte primäre Architektur, GCN (und optional GAT) als Ablation.**
+**GraphSAGE as the chosen primary architecture, GCN (and optionally GAT) as the ablation.**
 
-Begründung:
-1. **Literaturnähe**: GraphSAGE (Will et al., 2017) ist der kanonische induktive GNN für Link Prediction und in der einschlägigen Literatur das Standard-Verfahren für diese Aufgabe. Das stützt die Argumentation im Konzept und in der Präsentation.
-2. **Passt zum dichten Teilgraphen**: Der aktive Graph ist klein, aber dicht (mittlerer Grad 48,5). GraphSAGEs Neighbor-Sampling hält die Aggregation auch an hochgradigen Hubs beherrschbar, und die Self-Concat-Struktur trennt das eigene Feature einer Station explizit vom Nachbar-Aggregat — das reduziert Über-Glättung gerade bei hoher Knotendichte.
-3. **Aggregator-Flexibilität**: Die Wahl zwischen mean-, max-pool- und LSTM-Aggregation erlaubt es, das Aggregat-Muster (z.B. „starker Inflow" vs. „ausgewogen") gezielt zu modellieren.
-4. **Induktivität als Robustheits-Bonus**: Auch wenn das Stationen-Set geschlossen ist, macht die induktive Formulierung das Modell unempfindlich gegenüber kleinen Änderungen im Knoten-Set.
+Reasoning:
+1. **Close to the literature**: GraphSAGE (Will et al., 2017) is the canonical inductive GNN for link prediction and the standard method for this task in the relevant literature. That supports the argument in the concept and the presentation.
+2. **Fits the dense subgraph**: the active graph is small but dense (mean degree 48.5). GraphSAGE's neighbor sampling keeps aggregation manageable even at high-degree hubs, and the self-concat structure keeps a station's own feature separate from the neighbor aggregate — which reduces over-smoothing precisely at high node density.
+3. **Aggregator flexibility**: the choice between mean, max-pool and LSTM aggregation lets us target a specific aggregation pattern (e.g. "strong inflow" vs. "balanced").
+4. **Inductivity as a robustness bonus**: even though the station set is closed, the inductive formulation makes the model insensitive to small changes in the node set.
 
-Umgang mit den Edge Weights: Anders als GCN nutzt GraphSAGE Kantengewichte nicht nativ. Die historische Trip-Frequenz wird daher über eine **gewichtete Mean-Aggregation** bzw. als zusätzliches Kanten-Feature eingebracht — etwas mehr Implementierungsaufwand als bei GCN, aber Standard.
+Handling the edge weights: unlike GCN, GraphSAGE does not use edge weights natively. The historical trip frequency is therefore brought in via a **weighted mean aggregation** or as an extra edge feature — slightly more implementation effort than GCN, but standard.
 
-**GCN** bleibt die naheliegende Ablation: native Edge Weights, Voll-Batch-Training (bei 232 Knoten trivial), weniger Hyperparameter, deterministisch. Es ist die einfachere Referenz, gegen die der Mehrwert von GraphSAGE gemessen wird. Optional als dritte Variante: **GAT / GATv2**, das Kanten-Wichtigkeit aus den Features lernt — bei Mobilitätsdaten mit Tageszeit-Modulation eine interessante Ablation.
+**GCN** stays the obvious ablation: native edge weights, full-batch training (trivial at 232 nodes), fewer hyperparameters, deterministic. It is the simpler reference against which GraphSAGE's added value is measured. Optionally, as a third variant: **GAT / GATv2**, which learns edge importance from the features — an interesting ablation for mobility data with time-of-day modulation.
 
-## 2. Node-Zeitreihen-Branch: GRU vs. 1D-CNN
+## 2. Node time-series branch: GRU vs. 1D-CNN
 
-### Eckdaten der Knoten-Zeitreihen
+### Node time-series facts
 
-- Vier Serien pro Station: `num_bikes_available`, `num_ebikes_available`, `num_bikes_disabled`, `num_docks_disabled`.
-- Sampling-Median nach Resampling auf 5-Minuten-Bins: 5-10 Minuten je nach Serie.
-- Realistisches Eingabefenster: 30 Minuten bis 6 Stunden, also 6 bis 72 Zeitschritte.
-- Vorhersage-Horizont laut Aufgabenstellung: ein zukünftiges Zeitfenster, typischerweise 15-60 Minuten.
+- Four series per station: `num_bikes_available`, `num_ebikes_available`, `num_bikes_disabled`, `num_docks_disabled`.
+- Median sampling after resampling to 5-minute bins: 5–10 minutes depending on the series.
+- Realistic input window: 30 minutes to 6 hours, i.e. 6 to 72 time steps.
+- Prediction horizon per the assignment: one future time window, typically 15–60 minutes.
 
-### GRU — Stärken in diesem Setup
+### GRU — strengths in this setup
 
-- **Variable Sequenzlängen** möglich.
-- **Implizites State-Tracking**: eine gerade leer-gelaufene Station behält die "Leerlauf-Phase" als hidden state.
-- **Reichhaltige Literatur** speziell für Bike-Sharing-Forecasting.
+- **Variable sequence lengths** possible.
+- **Implicit state tracking**: a station that just ran empty keeps the "empty phase" in its hidden state.
+- **Rich literature** specifically for bike-sharing forecasting.
 
-### GRU — Schwächen in diesem Setup
+### GRU — weaknesses in this setup
 
-- **Sequenziell**. Trainiert langsam, gerade bei kurzen Sequenzen ist der Compute-Overhead überproportional.
-- **Vanishing-Gradient-Risiko** ab ~50 Schritten.
-- **Mehr Tuning** (hidden size, Anzahl Layer, Dropout-Stellen).
+- **Sequential**. Trains slowly; for short sequences the compute overhead is disproportionate.
+- **Vanishing-gradient risk** from ~50 steps on.
+- **More tuning** (hidden size, number of layers, dropout placement).
 
-### 1D-CNN — Stärken in diesem Setup
+### 1D-CNN — strengths in this setup
 
-- **Parallel und schnell**. Bei kurzen Fenstern (6-72 Schritte) trainiert eine 1D-CNN um Größenordnungen schneller als eine GRU bei gleicher Modellgröße.
-- **Lokale Muster sind exakt das, was hier zählt**: Entleerungs-Spikes, Refill-Spikes, kurzfristige Tageszeit-Wellen. Kernelgrößen von 3-5 reichen.
-- **Dilated Convolutions** geben bei Bedarf einen größeren Receptive Field ohne Tiefen-Explosion.
-- **Einfaches Tuning**: Kernelgröße, Filteranzahl, Pooling.
-- **Robust gegen Padding und Maskierung**, wichtig bei Stationen mit kürzeren Zeitreihen.
+- **Parallel and fast**. For short windows (6–72 steps) a 1D-CNN trains orders of magnitude faster than a GRU of the same size.
+- **Local patterns are exactly what matters here**: emptying spikes, refill spikes, short-term time-of-day waves. Kernel sizes of 3–5 are enough.
+- **Dilated convolutions** give a larger receptive field on demand without a depth explosion.
+- **Simple tuning**: kernel size, number of filters, pooling.
+- **Robust to padding and masking**, important for stations with shorter series.
 
-### 1D-CNN — Schwächen in diesem Setup
+### 1D-CNN — weaknesses in this setup
 
-- **Fixe Fenstergröße**: Receptive Field ist ein Architektur-Commitment.
-- **Weniger natürliches State-Tracking** für sehr lange Abhängigkeiten (mehrere Tage). Bei kurzem Vorhersage-Horizont irrelevant.
+- **Fixed window size**: the receptive field is an architectural commitment.
+- **Less natural state tracking** for very long dependencies (several days). Irrelevant given the short prediction horizon.
 
-### Entscheidung Node-Zeitreihen-Branch
+### Decision, node time-series branch
 
-**GRU als gewählte primäre Architektur, 1D-CNN als Ablation.**
+**GRU as the chosen primary architecture, 1D-CNN as the ablation.**
 
-Begründung:
-1. **Literaturnähe**: GRU ist der Standard-Encoder im Bike-Sharing-Forecasting (Chen et al., 2021; Cini et al., 2025). Es fügt sich zudem natürlich in das GCRNN/DCGRU-Framework ein, falls Graph- und Zeitreihen-Verarbeitung in einer späteren Iteration enger verschränkt werden sollen.
-2. **State-Tracking**: Das implizite hidden state der GRU erfasst Betriebszustände wie „Station gerade leer-gelaufen" oder „Refill läuft" auf natürliche Weise — genau die Dynamik, die für die Trip-Vorhersage relevant ist.
-3. **Beherrschbarer Compute**: Der Hauptnachteil der GRU (sequenzielles, langsameres Training) wiegt hier weniger schwer, weil der aktive Graph nach Filterung nur 232 Stationen umfasst. Das Gesamtvolumen bleibt handhabbar.
+Reasoning:
+1. **Close to the literature**: the GRU is the standard encoder in bike-sharing forecasting (Chen et al., 2021; Cini et al., 2025). It also fits naturally into the GCRNN/DCGRU framework, should graph and time-series processing be coupled more tightly in a later iteration.
+2. **State tracking**: the GRU's implicit hidden state captures operating states like "station just ran empty" or "refill in progress" naturally — exactly the dynamics relevant to trip prediction.
+3. **Manageable compute**: the GRU's main drawback (sequential, slower training) weighs less here, because the active graph has only 232 stations after filtering. The total volume stays manageable.
 
-**1D-CNN** bleibt die naheliegende Ablation: deutlich schnelleres, paralleles Training, gut für lokale Muster (Entleerungs-Spikes, Refill-Wellen) und einfacher zu interpretieren (Conv-Filter-Inspektion). Es ist die effizientere Referenz, gegen die sich der Mehrwert des State-Trackings der GRU messen lässt.
+**1D-CNN** stays the obvious ablation: much faster, parallel training, good for local patterns (emptying spikes, refill waves) and easier to interpret (conv-filter inspection). It is the more efficient reference against which the GRU's state-tracking value can be measured.
 
-Falls der Vorhersage-Horizont in einer späteren Iteration auf mehrere Stunden ausgedehnt wird, lohnt sich zusätzlich der Blick auf **TCN** (Temporal Convolutional Network mit dilated kernels) oder einen **kleinen Transformer-Encoder**.
+If the prediction horizon is extended to several hours in a later iteration, it is also worth looking at a **TCN** (temporal convolutional network with dilated kernels) or a **small Transformer encoder**.
 
-## 3. Sollte ich beides ausprobieren?
+## 3. Should I try both?
 
-Ja, aber **sequenziell und hypothesengetrieben**, nicht parallel und ergebnisoffen.
+Yes, but **sequentially and hypothesis-driven**, not in parallel and open-ended.
 
-### Empfohlene Vorgehens-Reihenfolge
+### Recommended order
 
-1. **Iteration 1**: GraphSAGE + GRU + Fusion-MLP. Gewählter primärer Pfad, literaturnah, End-to-End-Implementierung.
-2. **Iteration 2 (Ablation Architektur)**:
-   - Tausch Graph-Branch: GraphSAGE → GCN (oder GAT).
-   - Tausch Zeitreihen-Branch: GRU → 1D-CNN.
-   - Beide Tauschs unabhängig durchführen, nicht parallel kombinieren.
-3. **Iteration 2 (Ablation Komponenten)**:
-   - Nur Graph-Branch.
-   - Nur Zeitreihen-Branch.
-   - Beide ohne Fusion-MLP (einfache Verkettung als Linear-Layer).
-   - Zeigt, ob Fusion echten Mehrwert bringt.
-4. **Baselines**: **TGN** (Temporal Graph Networks) als temporales Graph-Verfahren und **VSTD** (Variational Autoencoder-based Spatio-Temporal Disentanglement) als spatiotemporales Verfahren; zusätzlich eine Frequenz-Heuristik und eine logistische Regression über statische Features als einfache Referenzpunkte.
-5. **Finale Ergebnistabelle** für Konzept und Präsentation.
+1. **Iteration 1**: GraphSAGE + GRU + fusion MLP. The chosen primary path, close to the literature, end-to-end implementation.
+2. **Iteration 2 (architecture ablation)**:
+   - Swap the graph branch: GraphSAGE → GCN (or GAT).
+   - Swap the time-series branch: GRU → 1D-CNN.
+   - Do each swap independently, not combined in parallel.
+3. **Iteration 2 (component ablation)**:
+   - Graph branch only.
+   - Time-series branch only.
+   - Both without the fusion MLP (simple concatenation into a linear layer).
+   - Shows whether fusion adds real value.
+4. **Baselines**: **TGN** (Temporal Graph Networks) as a temporal-graph method and **VSTD** (variational-autoencoder-based spatio-temporal disentanglement) as a spatio-temporal method; plus a frequency heuristic and a logistic regression over static features as simple reference points.
+5. **Final results table** for the concept and the presentation.
 
-### Anti-Empfehlung
+### Anti-recommendation
 
-Nicht alle 4 Kombinationen (GraphSAGE/GCN × GRU/1D-CNN) im Grid durchprobieren. Treatments überlagern sich, Compute wird verbrannt, narrative Klarheit geht verloren. Stattdessen vom gewählten Pfad (GraphSAGE + GRU) ausgehend jeweils eine Variable kontrolliert tauschen.
+Don't grid-search all 4 combinations (GraphSAGE/GCN × GRU/1D-CNN). The treatments overlap, compute is burned, and narrative clarity is lost. Instead, start from the chosen path (GraphSAGE + GRU) and swap one variable at a time in a controlled way.
 
-## 4. Argumentations-Snippet für das Konzept-Dokument
+## 4. Argument snippet for the concept document
 
-> Für den Graph-Branch wurde **GraphSAGE** gewählt, weil es das in der Link-Prediction-Literatur etablierte induktive Aggregations-Framework ist und über seine Self-Concat-Struktur und Neighbor-Sampling gut zum kleinen, aber dichten aktiven Stationsgraphen (232 Knoten, mittlerer Grad 48,5) passt. Die historische Trip-Frequenz wird als gewichtetes Kanten-Signal in die Aggregation einbezogen. GCN dient als einfachere Referenz mit nativen Edge Weights und wird als Ablations-Variante geführt.
+> For the graph branch we chose **GraphSAGE**, because it is the established inductive aggregation framework in the link-prediction literature and, via its self-concat structure and neighbor sampling, fits the small but dense active station graph well (232 nodes, mean degree 48.5). Historical trip frequency is included as a weighted edge signal in the aggregation. GCN serves as the simpler reference with native edge weights and is kept as an ablation variant.
 >
-> Für den Node-Zeitreihen-Branch wurde **GRU** gewählt, weil rekurrente Encoder im Bike-Sharing-Forecasting etabliert sind und der hidden state Betriebszustände der Stationen (Entleerung, Refill) implizit nachverfolgt. GRU fügt sich zudem natürlich in das GCRNN/DCGRU-Framework ein, falls Graph- und Zeitreihen-Verarbeitung später enger verschränkt werden. 1D-CNN ist die schnellere, auf lokale Muster fokussierte Alternative und wird als Ablations-Variante geführt.
+> For the node time-series branch we chose **GRU**, because recurrent encoders are established in bike-sharing forecasting and the hidden state implicitly tracks station operating states (emptying, refill). The GRU also fits naturally into the GCRNN/DCGRU framework, should graph and time-series processing be coupled more tightly later. The 1D-CNN is the faster, local-pattern-focused alternative and is kept as an ablation variant.
 
-## 5. Offene Fragen
+## 5. Open questions
 
-- Falls in einer späteren Iteration das Vorhersage-Fenster vergrößert wird (z.B. 24 h), sollte der Zeitreihen-Branch neu evaluiert werden (TCN, Transformer-Encoder).
-- Ist eine **gerichtete Graph-Variante** sinnvoll? Trip-Flow ist gerichtet. GraphSAGE lässt sich gerichtet betreiben, indem In- und Out-Nachbarn getrennt gesampelt und aggregiert werden; alternativ zwei separate Adjazenzen (forward, backward) mit parallelen Branches oder eine explizit gerichtete GNN-Variante (Directed GCN, DGCN).
-- Falls GAT als Alternative gewählt wird: lohnt sich Multi-Head-Attention, oder reicht Single-Head?
+- If the prediction window is enlarged in a later iteration (e.g. 24 h), the time-series branch should be re-evaluated (TCN, Transformer encoder).
+- Is a **directed graph variant** worthwhile? Trip flow is directed. GraphSAGE can run directed by sampling and aggregating in- and out-neighbors separately; alternatively two separate adjacencies (forward, backward) with parallel branches, or an explicitly directed GNN variant (Directed GCN, DGCN).
+- If GAT is chosen as the alternative: is multi-head attention worth it, or is single-head enough?
