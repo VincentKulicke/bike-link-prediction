@@ -38,10 +38,14 @@ Harder protocol than the 1:5 default: each positive is ranked against 99 random 
    MRR 0.402 vs. 0.342 (test) — a real lead, but far less dramatic than the
    1:5 AP gap (0.92 vs. 0.65) suggested. The hard metric gives a fairer picture.
 
-4. **The HPO selection objective matters.** GraphMixer's HPO config was chosen on
-   1:5 val AP (+0.10 there) but is *worse* under 1:99 ranking (MRR 0.342 → 0.315).
-   A config optimized for the easy discrimination does not transfer to the harder
-   ranking objective — a caution about which metric HPO selects on.
+4. ~~**The HPO selection objective matters.**~~ *Retracted.* The original reading
+   was that GraphMixer's HPO config, chosen on 1:5 val AP, transfers poorly to
+   1-vs-99 ranking (MRR 0.342 → 0.315). The two-factor experiment
+   (`factors_comparison.md`) later measured GraphMixer's seed noise at
+   σ ≈ 0.07 AP — far larger than this gap. Both numbers here are single runs, so
+   the difference is not distinguishable from noise and the claim does not hold.
+   Confirming or refuting it would require running the ranking evaluation across
+   several seeds.
 
 5. AUC is ~0.925 for every model (insensitive to imbalance) and pooled AP sits
    near the 1/100 base rate for all; MRR / Hits@1 are the discriminating metrics

@@ -52,10 +52,13 @@ distinguishable from seed noise.
    GraphMixer — a factor of 33–54. The hybrid is not just more accurate but
    far more reproducible, which matters as much in practice.
 
-5. **Hyperparameters matter less than the random seed for the hybrid.** The
-   entire grid spread over 27 configs was 0.006 AP, i.e. ~8 seed-σ, while the
-   architecture gap to GraphMixer is ~470 seed-σ. The performance comes from the
-   architecture, not from tuning.
+5. **The hyperparameter effect is systematic but tiny.** Note that the two
+   factors are measured separately in `factors_comparison.md` — the grid spreads
+   quoted elsewhere in this repo come from single-seed runs and are inflated by
+   seed noise. Cleanly separated, the hybrid's hyperparameter effect is 8.2×
+   its seed noise (so the grid ranking is meaningful) but spans only 0.0064 AP
+   in total. The architecture gap to GraphMixer is roughly 50× that range. The
+   performance comes from the architecture, not from tuning.
 
 ## Correction to earlier GraphMixer numbers
 
