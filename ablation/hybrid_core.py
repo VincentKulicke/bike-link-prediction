@@ -14,6 +14,12 @@ Both encoders share the same interface:  (B, L, C) -> (B, hidden). That keeps
 the rest of the architecture (GraphSAGE, fusion, hurdle heads) identical, so
 the comparison stays fair.
 
+Branch ablations (use_graph / use_temporal / use_pair):
+  Components are disabled by zeroing their contribution in HybridHurdle.forward,
+  NOT by shrinking input dimensions or removing layers. Parameter count stays
+  identical across variants, so a performance drop cannot be attributed to
+  reduced model capacity — only to the missing signal.
+
 Selection protocol (important):
   - Hyperparameters are picked from VALIDATION metrics only.
   - The test split is touched exactly once, for the final (best) config.
@@ -53,11 +59,21 @@ class HybridCfg:
     batch_size: int = 1024
     lambda_count: float = 1.0
     seed: int = 42
+    # Branch ablations: False zeros that branch's contribution (same param count).
+    use_graph: bool = True
+    use_temporal: bool = True
+    use_pair: bool = True
 
     def tag(self) -> str:
         base = f"{self.encoder}_lr{self.lr:g}_h{self.hidden}_lam{self.lambda_count:g}"
         if self.encoder == "cnn":
             base += f"_k{self.kernel_size}"
+        if not self.use_graph:
+            base += "_nograph"
+        if not self.use_temporal:
+            base += "_notemp"
+        if not self.use_pair:
+            base += "_nopair"
         return base
 
 
@@ -229,8 +245,17 @@ def build_encoder(cfg: HybridCfg, n_channels: int) -> nn.Module:
 # 5) HYBRID MODEL (GraphSAGE + encoder + fusion + hurdle heads)
 # ===========================================================================
 class HybridHurdle(nn.Module):
+    """GraphSAGE + temporal encoder + pair features + dual heads.
+
+    Ablation flags (cfg.use_graph / use_temporal / use_pair) zero the matching
+    tensor before fusion. Layers and input sizes are never removed, so every
+    variant has the same parameter count — only the signal changes.
+    """
     def __init__(self, cfg: HybridCfg, n_static, n_channels, n_pair):
         super().__init__()
+        self.use_graph = cfg.use_graph
+        self.use_temporal = cfg.use_temporal
+        self.use_pair = cfg.use_pair
         self.sage = GraphSAGE(n_static, cfg.hidden, cfg.hidden, cfg.dropout)
         self.enc  = build_encoder(cfg, n_channels)
         node_dim  = cfg.hidden + cfg.hidden          # sage_out + enc_hidden
@@ -242,11 +267,19 @@ class HybridHurdle(nn.Module):
         self.softplus = nn.Softplus()
 
     def node_repr(self, sage_emb, idx, win):
-        return torch.cat([sage_emb[idx], self.enc(win)], dim=-1)
+        g = sage_emb[idx]
+        t = self.enc(win)
+        if not self.use_graph:
+            g = torch.zeros_like(g)
+        if not self.use_temporal:
+            t = torch.zeros_like(t)
+        return torch.cat([g, t], dim=-1)
 
     def forward(self, sage_emb, u, i, win_u, win_i, pf):
         hu = self.node_repr(sage_emb, u, win_u)
         hi = self.node_repr(sage_emb, i, win_i)
+        if not self.use_pair:
+            pf = torch.zeros_like(pf)
         z = self.fusion(torch.cat([hu, hi, pf], dim=-1))
         logit = self.head_bin(z).squeeze(-1)
         count = self.softplus(self.head_count(z)).squeeze(-1)
