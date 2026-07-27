@@ -126,16 +126,32 @@ def ranking_metrics(df: pd.DataFrame, score_col: str = "score") -> dict:
     lab = df["label"].values
     sc = df[score_col].values
     out = {"auc": auc_roc(lab, sc), "ap": average_precision(lab, sc)}
-    rr, h1, h5 = [], [], []
-    for _q, g in df.groupby("query_id"):
+    pq = per_query_ranks(df, score_col=score_col)
+    out.update({"mrr": float(pq["rr"].mean()), "hits@1": float(pq["hits@1"].mean()),
+                "hits@5": float(pq["hits@5"].mean()), "n_queries": int(len(pq))})
+    return out
+
+
+def per_query_ranks(df: pd.DataFrame, score_col: str = "score") -> pd.DataFrame:
+    """One row per query: reciprocal rank and Hits of the true destination.
+
+    Also returns the positive pair (u, i_pos) so callers can stratify by
+    pair history without re-joining the candidate set.
+    """
+    rows = []
+    for qid, g in df.groupby("query_id", sort=True):
         s = g[score_col].values
         order = np.argsort(-s, kind="mergesort")
         ranks = np.empty(len(s)); ranks[order] = np.arange(1, len(s) + 1)
-        pr = int(ranks[g["label"].values == 1][0])   # rank of the positive
-        rr.append(1.0 / pr); h1.append(pr <= 1); h5.append(pr <= 5)
-    out.update({"mrr": float(np.mean(rr)), "hits@1": float(np.mean(h1)),
-                "hits@5": float(np.mean(h5)), "n_queries": len(rr)})
-    return out
+        pos = g["label"].values == 1
+        pr = int(ranks[pos][0])
+        u = int(g["u"].iloc[0])
+        i_pos = int(g.loc[pos, "i"].iloc[0])
+        rows.append({"query_id": int(qid), "u": u, "i": i_pos,
+                     "bin_idx": int(g["bin_idx"].iloc[0]),
+                     "rank": pr, "rr": 1.0 / pr,
+                     "hits@1": pr <= 1, "hits@5": pr <= 5})
+    return pd.DataFrame(rows)
 
 
 # ---------------------------------------------------------------------------
@@ -240,11 +256,14 @@ class SharedLinkEval:
 
     # ---- harder 1-vs-K ranking candidate set (destination ranking) ----
     def build_ranking_candidates(self, split: str = "test", n_neg: int = 99,
-                                 max_queries: int = 5000) -> pd.DataFrame:
+                                 max_queries: int | None = 5000) -> pd.DataFrame:
         """Fixed, seeded 1-vs-K ranking set: each observed positive (u, i, bin)
         becomes a query of the true destination i plus `n_neg` random destinations
         i' (same source u and bin, i' not a positive there). The model must rank
         the true i among the K+1 candidates.
+
+        max_queries=None keeps every positive in the split (needed for rare-pair
+        strata). Otherwise a seeded subsample of that size is drawn.
 
         Returns columns: query_id, u, i, bin_idx, label (1 = true destination).
         Harder than the 1:5 binary set, so it exposes differences the saturated
@@ -255,7 +274,7 @@ class SharedLinkEval:
         if len(pos) == 0:
             raise ValueError(f"No positives in split '{split}'.")
         rng = np.random.default_rng(self.cfg.seed)
-        if len(pos) > max_queries:
+        if max_queries is not None and len(pos) > max_queries:
             pos = pos[rng.choice(len(pos), size=max_queries, replace=False)]
         P = len(pos)
         nodes = np.unique(np.concatenate([tg["u"].values, tg["i"].values]))
@@ -281,14 +300,21 @@ class SharedLinkEval:
 # ---------------------------------------------------------------------------
 # Demo / self-test: frequency heuristic as a trivial reference baseline
 # ---------------------------------------------------------------------------
-def _frequency_baseline(ev: SharedLinkEval, split: str) -> pd.DataFrame:
+def _frequency_baseline(ev: SharedLinkEval, split: str,
+                        cand: pd.DataFrame | None = None) -> pd.DataFrame:
     """Simplest possible baseline: score/count of a pair = mean number of trips
-    per bin over the TRAINING period. Only used to smoke-test the pipeline."""
+    per bin over the TRAINING period.
+
+    `cand` defaults to the 1:5 shared_eval candidates for `split`. Pass a
+    custom candidate frame (e.g. the 1-vs-99 ranking set) to score those rows
+    with the same heuristic — no training involved.
+    """
     tg = ev.build_targets()
     train = tg[tg["split"] == "train"]
     n_train_bins = max(1, train["bin_idx"].nunique())
     rate = (train.groupby(["u", "i"])["count"].sum() / n_train_bins)
-    cand = ev.build_candidates(split)
+    if cand is None:
+        cand = ev.build_candidates(split)
     pred = cand[["u", "i", "bin_idx"]].copy()
     key = list(zip(pred["u"], pred["i"]))
     vals = np.array([rate.get(k, 0.0) for k in key])
