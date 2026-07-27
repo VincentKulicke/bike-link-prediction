@@ -277,11 +277,14 @@ def _predict(model, data: HybridData, cfg: HybridCfg, split: str) -> pd.DataFram
 
 def run_hybrid(cfg: HybridCfg, data: HybridData,
                eval_splits=("val",), export_dir: str | None = None,
-               verbose: bool = False) -> dict:
+               verbose: bool = False, return_model: bool = False) -> dict:
     """Train one hybrid model and score it on the given splits.
 
     Grid search:  eval_splits=("val",)  -> validation only.
     Final run:    eval_splits=("val","test")  and set export_dir.
+    return_model=True adds the trained model to the result (e.g. for the
+    ranking evaluation, which scores its own candidate set). Pass
+    eval_splits=() to only train.
     """
     assert cfg.ts_lookback == data.lookback, (
         f"cfg.ts_lookback={cfg.ts_lookback} != data.lookback={data.lookback}; "
@@ -322,4 +325,6 @@ def run_hybrid(cfg: HybridCfg, data: HybridData,
             os.makedirs(export_dir, exist_ok=True)
             pred.to_csv(os.path.join(export_dir, f"{cfg.encoder}_pred_{split}.csv"),
                         index=False)
+    if return_model:
+        res["model"] = model
     return res
