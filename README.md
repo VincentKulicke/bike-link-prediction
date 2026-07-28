@@ -105,22 +105,3 @@ ev.score_count(pred_df,  split="test")   # MSE, MAE, RMSE
 ```
 This guarantees identical ground truth, splits and candidate pairs across all
 methods.
-
-## Status
-
-- [x] Data preparation + sanity check
-- [x] Shared evaluation module
-- [x] GraphMixer baseline (code + local runner)
-- [x] LSTM baseline (count) (code + local runner)
-- [x] Hybrid model GraphSAGE+GRU+hurdle (binary & count), iteration 2
-- [x] Model runs + final comparison tables (`results/comparison.md`)
-- [x] Ablation study: grid-search HPO + GraphSAGE+1D-CNN (`ablation/results/`)
-
-## Sharing via GitLab
-
-```bash
-git remote add origin <YOUR-GITLAB-REPO-URL>
-git push -u origin main
-```
-Raw data and model outputs (`predictions/`, `results/`) are excluded via
-`.gitignore`; the small prepared data in `prepared Data/` is kept in the repo.
