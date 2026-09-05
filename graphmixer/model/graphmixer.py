@@ -54,7 +54,10 @@ class GMConfig:
     lr: float = 1e-3
     epochs: int = 20
     batch_size: int = 256
-    neg_per_pos: int = 1           # Negative je Positive beim Training
+    # Trainingspaare werden aus shared_eval gezogen (gleiche Verteilung wie die
+    # Auswertung). Deckel, weil GraphMixer je Paar zwei Nachbarschafts-Packs
+    # baut und die vollen 374k Kandidaten die Epoche verdreifachen wuerden.
+    max_train_pairs: int = 150_000
     seed: int = 42
     # zeitliche Grenzen (in Sekunden seit Fensterbeginn) – identisch zu shared_eval
     bin_minutes: int = 30

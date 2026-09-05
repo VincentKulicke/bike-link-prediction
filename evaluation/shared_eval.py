@@ -1,40 +1,40 @@
 # -*- coding: utf-8 -*-
 """
-Gemeinsames, MODELL-AGNOSTISCHES Evaluationsmodul fuer das Link-Prediction-Projekt.
+Shared, MODEL-AGNOSTIC evaluation module for the link-prediction project.
 
-Zweck
------
-Definiert Ground Truth, temporalen Split und Kandidatenpaare GENAU EINMAL, sodass
-jedes Modell (GraphMixer-Baseline, LSTM-Baseline, euer Hybridmodell) auf exakt
-demselben Protokoll bewertet wird. Jedes Modell liefert nur Vorhersagen in einem
-gemeinsamen Format zurueck; dieses Modul rechnet die Metriken.
+Purpose
+-------
+Defines the ground truth, the temporal split and the candidate pairs EXACTLY
+ONCE, so every model (GraphMixer baseline, LSTM baseline, our hybrid model) is
+scored against the exact same protocol. A model only returns predictions in a
+common format; this module computes the metrics.
 
-Zwei Aufgaben (gemaess Aufgabenstellung)
----------------------------------------
-1. BINAER  : Gibt es im Zeitfenster eine Verbindung (u->v)? -> AUC, AP, F1, Accuracy
-             (Vergleich: euer Modell vs. GraphMixer)
-2. COUNT   : Wie viele Fahrten zwischen u->v im Fenster?     -> MSE, MAE, RMSE
-             (Vergleich: euer Modell vs. LSTM)
-             Ground Truth = Differenz der num_rides-Zeitreihe (jede Fahrt = +1).
+Two tasks (per the assignment)
+------------------------------
+1. BINARY : Is there a link (u->v) in the window? -> AUC, AP, F1, Accuracy
+            (comparison: our model vs. GraphMixer)
+2. COUNT  : How many rides between u->v in the window? -> MSE, MAE, RMSE
+            (comparison: our model vs. LSTM)
+            Ground truth = difference of the num_rides series (each ride = +1).
 
-Schnittstelle fuer Modelle
---------------------------
-Ein Modell erzeugt eine Vorhersage-Tabelle mit Spalten:
-    u, i, bin_idx, score        (binaer: Wahrscheinlichkeit/Logit-Sigmoid in [0,1])
-    u, i, bin_idx, pred_count   (count : nicht-negative Zahl)
-Knoten-IDs in KANONISCHER Form (0..231, siehe node_index.csv).
-GraphMixer-Ausgaben (1-indiziert) vorher um -1 verschieben.
+Model interface
+---------------
+A model produces a prediction table with columns:
+    u, i, bin_idx, score        (binary: probability / sigmoid(logit) in [0,1])
+    u, i, bin_idx, pred_count   (count : a non-negative number)
+Node IDs in CANONICAL form (0..231, see node_index.csv).
+GraphMixer outputs (1-indexed) must be shifted by -1 beforehand.
 
-Dann:
+Then:
     ev = SharedLinkEval()
     targets = ev.build_targets()
-    cand    = ev.build_candidates(split="test")          # feste, geseedete Kandidaten
-    # ... Modell erzeugt Scores fuer genau diese (u,i,bin_idx) ...
+    cand    = ev.build_candidates(split="test")          # fixed, seeded candidates
+    # ... model produces scores for exactly these (u,i,bin_idx) ...
     print(ev.score_binary(pred_df, split="test"))
     print(ev.score_count(pred_df,  split="test"))
 
-Das Modul hat KEINE Abhaengigkeit zu sklearn/scipy (Metriken sind selbst
-implementiert), damit es ueberall laeuft.
+The module has NO dependency on sklearn/scipy (metrics are implemented here),
+so it runs anywhere.
 """
 from __future__ import annotations
 import os
@@ -43,18 +43,18 @@ import numpy as np
 import pandas as pd
 
 # ---------------------------------------------------------------------------
-# Konfiguration des Protokolls (fuer ALLE Modelle identisch)
+# Protocol configuration (identical for ALL models)
 # ---------------------------------------------------------------------------
 PREP_DIR = os.path.join(os.path.dirname(__file__), "..", "prepared Data")
 
 @dataclass
 class EvalConfig:
-    targets_csv: str = os.path.join(PREP_DIR, "superedge_counts.csv")  # Superedge-num_rides je Bin (u,i,bin_idx,count)
-    bin_minutes: int = 30          # Laenge eines Vorhersage-Fensters
-    # Temporaler Split in Tagen (Fenster ~29 Tage): Train 21 / Val 4 / Test 4
+    targets_csv: str = os.path.join(PREP_DIR, "superedge_counts.csv")  # super-edge num_rides per bin (u,i,bin_idx,count)
+    bin_minutes: int = 30          # length of one prediction window
+    # temporal split in days (~29-day window): train 21 / val 4 / test 4
     train_days: int = 21
     val_days: int = 4
-    neg_ratio: int = 5             # negative je positive Zelle (binaere Eval)
+    neg_ratio: int = 5             # negatives per positive cell (binary eval)
     seed: int = 42
 
     @property
@@ -63,10 +63,10 @@ class EvalConfig:
 
 
 # ---------------------------------------------------------------------------
-# Metriken (ohne externe Abhaengigkeiten)
+# Metrics (no external dependencies)
 # ---------------------------------------------------------------------------
 def auc_roc(y_true: np.ndarray, y_score: np.ndarray) -> float:
-    """AUC via Mann-Whitney-U (rangbasiert)."""
+    """AUC via the Mann-Whitney U statistic (rank-based)."""
     y_true = np.asarray(y_true); y_score = np.asarray(y_score)
     n_pos = int((y_true == 1).sum()); n_neg = int((y_true == 0).sum())
     if n_pos == 0 or n_neg == 0:
@@ -74,7 +74,7 @@ def auc_roc(y_true: np.ndarray, y_score: np.ndarray) -> float:
     order = np.argsort(y_score, kind="mergesort")
     ranks = np.empty(len(y_score), dtype=float)
     ranks[order] = np.arange(1, len(y_score) + 1)
-    # Bindungen (gleiche Scores) mitteln
+    # average tied ranks (equal scores)
     _, inv, counts = np.unique(y_score, return_inverse=True, return_counts=True)
     sums = np.zeros(len(counts)); np.add.at(sums, inv, ranks)
     ranks = (sums / counts)[inv]
@@ -113,8 +113,49 @@ def count_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
             "rmse": float(np.sqrt(np.mean(err**2)))}
 
 
+def ranking_metrics(df: pd.DataFrame, score_col: str = "score") -> dict:
+    """Metrics for the 1-vs-K ranking protocol.
+
+    df must have columns: query_id, label (1 for the true destination, 0 for
+    the sampled negatives), and `score_col`. Each query is one positive plus K
+    negatives; we rank the positive within its query.
+
+    Reports MRR / Hits@1 / Hits@5 (grouped, the ranking view) plus pooled AUC/AP
+    over all rows (the harder binary view under 1:K imbalance).
+    """
+    lab = df["label"].values
+    sc = df[score_col].values
+    out = {"auc": auc_roc(lab, sc), "ap": average_precision(lab, sc)}
+    pq = per_query_ranks(df, score_col=score_col)
+    out.update({"mrr": float(pq["rr"].mean()), "hits@1": float(pq["hits@1"].mean()),
+                "hits@5": float(pq["hits@5"].mean()), "n_queries": int(len(pq))})
+    return out
+
+
+def per_query_ranks(df: pd.DataFrame, score_col: str = "score") -> pd.DataFrame:
+    """One row per query: reciprocal rank and Hits of the true destination.
+
+    Also returns the positive pair (u, i_pos) so callers can stratify by
+    pair history without re-joining the candidate set.
+    """
+    rows = []
+    for qid, g in df.groupby("query_id", sort=True):
+        s = g[score_col].values
+        order = np.argsort(-s, kind="mergesort")
+        ranks = np.empty(len(s)); ranks[order] = np.arange(1, len(s) + 1)
+        pos = g["label"].values == 1
+        pr = int(ranks[pos][0])
+        u = int(g["u"].iloc[0])
+        i_pos = int(g.loc[pos, "i"].iloc[0])
+        rows.append({"query_id": int(qid), "u": u, "i": i_pos,
+                     "bin_idx": int(g["bin_idx"].iloc[0]),
+                     "rank": pr, "rr": 1.0 / pr,
+                     "hits@1": pr <= 1, "hits@5": pr <= 5})
+    return pd.DataFrame(rows)
+
+
 # ---------------------------------------------------------------------------
-# Gemeinsames Eval-Objekt
+# Shared eval object
 # ---------------------------------------------------------------------------
 class SharedLinkEval:
     def __init__(self, config: EvalConfig | None = None):
@@ -122,7 +163,7 @@ class SharedLinkEval:
         self._raw = None
         self._targets = None
 
-    # ---- Superedge-Count-Tabelle laden (bereits je 30-min-Bin aggregiert) ----
+    # ---- load the super-edge count table (already aggregated per 30-min bin) ----
     def _load_raw(self) -> pd.DataFrame:
         if self._raw is None:
             self._raw = pd.read_csv(self.cfg.targets_csv, usecols=["u", "i", "bin_idx", "count"])
@@ -140,10 +181,10 @@ class SharedLinkEval:
                  np.where(bin_idx < val_end, "val", "test"))
         return split
 
-    # ---- Ground Truth: count & label je (u,i,bin) ----
+    # ---- ground truth: count & label per (u,i,bin) ----
     def build_targets(self) -> pd.DataFrame:
-        """Positive Zellen: count = Delta num_rides der Superedge in (u,i,bin).
-        label = 1 (count>0). Negative werden separat in build_candidates gezogen."""
+        """Positive cells: count = delta num_rides of the super-edge in (u,i,bin).
+        label = 1 (count>0). Negatives are drawn separately in build_candidates."""
         if self._targets is not None:
             return self._targets
         g = self._load_raw().copy()
@@ -152,16 +193,16 @@ class SharedLinkEval:
         self._targets = g
         return g
 
-    # ---- Kandidatenmenge (Positives + geseedete Negatives) ----
+    # ---- candidate set (positives + seeded negatives) ----
     def build_candidates(self, split: str = "test") -> pd.DataFrame:
-        """Feste, reproduzierbare Kandidatenmenge fuer einen Split.
-        Positives = beobachtete (u,i,bin); Negatives = zufaellige (u,i,bin) mit count=0.
-        Alle Modelle MUESSEN auf genau diese (u,i,bin_idx) Vorhersagen liefern."""
+        """Fixed, reproducible candidate set for a split.
+        Positives = observed (u,i,bin); negatives = random (u,i,bin) with count=0.
+        Every model MUST produce predictions for exactly these (u,i,bin_idx)."""
         tg = self.build_targets()
         pos = tg[tg["split"] == split][["u", "i", "bin_idx", "count"]].copy()
         pos["label"] = 1
         if len(pos) == 0:
-            raise ValueError(f"Keine Positives im Split '{split}'.")
+            raise ValueError(f"No positives in split '{split}'.")
 
         nodes = np.unique(np.concatenate([tg["u"].values, tg["i"].values]))
         bins = pos["bin_idx"].unique()
@@ -186,14 +227,14 @@ class SharedLinkEval:
         cand = pd.concat([pos, neg], ignore_index=True)
         return cand.sample(frac=1.0, random_state=self.cfg.seed).reset_index(drop=True)
 
-    # ---- Bewertung: Vorhersagen einklinken ----
+    # ---- scoring: join in the predictions ----
     def _join(self, pred_df: pd.DataFrame, split: str, value_col: str) -> pd.DataFrame:
         cand = self.build_candidates(split)
         keys = ["u", "i", "bin_idx"]
         merged = cand.merge(pred_df[keys + [value_col]], on=keys, how="left")
         missing = merged[value_col].isna().sum()
         if missing:
-            print(f"[WARN] {missing} Kandidaten ohne Vorhersage -> mit 0 aufgefuellt.")
+            print(f"[WARN] {missing} candidates without a prediction -> filled with 0.")
         merged[value_col] = merged[value_col].fillna(0.0)
         return merged
 
@@ -213,41 +254,90 @@ class SharedLinkEval:
         out.update(count_metrics(m["count"].values, m[count_col].values))
         return out
 
+    # ---- harder 1-vs-K ranking candidate set (destination ranking) ----
+    def build_ranking_candidates(self, split: str = "test", n_neg: int = 99,
+                                 max_queries: int | None = 5000) -> pd.DataFrame:
+        """Fixed, seeded 1-vs-K ranking set: each observed positive (u, i, bin)
+        becomes a query of the true destination i plus `n_neg` random destinations
+        i' (same source u and bin, i' not a positive there). The model must rank
+        the true i among the K+1 candidates.
+
+        max_queries=None keeps every positive in the split (needed for rare-pair
+        strata). Otherwise a seeded subsample of that size is drawn.
+
+        Returns columns: query_id, u, i, bin_idx, label (1 = true destination).
+        Harder than the 1:5 binary set, so it exposes differences the saturated
+        1:5 protocol hides.
+        """
+        tg = self.build_targets()
+        pos = tg[tg["split"] == split][["u", "i", "bin_idx"]].to_numpy()
+        if len(pos) == 0:
+            raise ValueError(f"No positives in split '{split}'.")
+        rng = np.random.default_rng(self.cfg.seed)
+        if max_queries is not None and len(pos) > max_queries:
+            pos = pos[rng.choice(len(pos), size=max_queries, replace=False)]
+        P = len(pos)
+        nodes = np.unique(np.concatenate([tg["u"].values, tg["i"].values]))
+        u = pos[:, 0]; i_true = pos[:, 1]; b = pos[:, 2]
+
+        neg = rng.choice(nodes, size=(P, n_neg))
+        for _ in range(6):   # resample obvious collisions (self-loop / true target)
+            bad = (neg == u[:, None]) | (neg == i_true[:, None])
+            if not bad.any():
+                break
+            neg[bad] = rng.choice(nodes, size=int(bad.sum()))
+
+        qid = np.repeat(np.arange(P), n_neg + 1)
+        uu = np.repeat(u, n_neg + 1)
+        bb = np.repeat(b, n_neg + 1)
+        ii = np.empty((P, n_neg + 1), dtype=i_true.dtype)
+        ii[:, 0] = i_true; ii[:, 1:] = neg
+        lab = np.zeros((P, n_neg + 1), dtype=int); lab[:, 0] = 1
+        return pd.DataFrame({"query_id": qid, "u": uu, "i": ii.reshape(-1),
+                             "bin_idx": bb, "label": lab.reshape(-1)})
+
 
 # ---------------------------------------------------------------------------
-# Demo / Selbsttest: Frequenz-Heuristik als triviale Referenz-Baseline
+# Demo / self-test: frequency heuristic as a trivial reference baseline
 # ---------------------------------------------------------------------------
-def _frequency_baseline(ev: SharedLinkEval, split: str) -> pd.DataFrame:
-    """Einfachste denkbare Baseline: Score/Count eines Paares = mittlere
-    Trip-Anzahl pro Bin im TRAININGSZEITRAUM. Dient nur zum Testen der Pipeline."""
+def _frequency_baseline(ev: SharedLinkEval, split: str,
+                        cand: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Simplest possible baseline: score/count of a pair = mean number of trips
+    per bin over the TRAINING period.
+
+    `cand` defaults to the 1:5 shared_eval candidates for `split`. Pass a
+    custom candidate frame (e.g. the 1-vs-99 ranking set) to score those rows
+    with the same heuristic — no training involved.
+    """
     tg = ev.build_targets()
     train = tg[tg["split"] == "train"]
     n_train_bins = max(1, train["bin_idx"].nunique())
     rate = (train.groupby(["u", "i"])["count"].sum() / n_train_bins)
-    cand = ev.build_candidates(split)
+    if cand is None:
+        cand = ev.build_candidates(split)
     pred = cand[["u", "i", "bin_idx"]].copy()
     key = list(zip(pred["u"], pred["i"]))
     vals = np.array([rate.get(k, 0.0) for k in key])
     pred["pred_count"] = vals
-    pred["score"] = 1 - np.exp(-vals)   # Rate -> Wahrscheinlichkeit (mind. 1 Trip)
+    pred["score"] = 1 - np.exp(-vals)   # rate -> probability (at least 1 trip)
     return pred
 
 
 if __name__ == "__main__":
     ev = SharedLinkEval()
     tg = ev.build_targets()
-    print("=== Protokoll ===")
-    print(f"Bins gesamt: {ev.n_bins} (a {ev.cfg.bin_minutes} min)")
+    print("=== protocol ===")
+    print(f"total bins: {ev.n_bins} (of {ev.cfg.bin_minutes} min each)")
     for s in ["train", "val", "test"]:
         sub = tg[tg["split"] == s]
-        print(f"  {s:5s}: {len(sub):6d} positive Zellen | "
-              f"{sub['bin_idx'].nunique():4d} Bins | {int(sub['count'].sum()):6d} Trips")
+        print(f"  {s:5s}: {len(sub):6d} positive cells | "
+              f"{sub['bin_idx'].nunique():4d} bins | {int(sub['count'].sum()):6d} trips")
 
-    print("\n=== Demo: Frequenz-Heuristik (Referenz) ===")
+    print("\n=== demo: frequency heuristic (reference) ===")
     for split in ["val", "test"]:
         pred = _frequency_baseline(ev, split)
         b = ev.score_binary(pred, split=split)
         c = ev.score_count(pred, split=split)
-        print(f"[{split}] BINAER  AUC={b['auc']:.3f} AP={b['ap']:.3f} "
+        print(f"[{split}] BINARY  AUC={b['auc']:.3f} AP={b['ap']:.3f} "
               f"F1={b['f1']:.3f} Acc={b['accuracy']:.3f} (n_pos={b['n_pos']}/{b['n_total']})")
         print(f"[{split}] COUNT   MSE={c['mse']:.3f} MAE={c['mae']:.3f} RMSE={c['rmse']:.3f}")

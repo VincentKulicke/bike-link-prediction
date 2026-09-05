@@ -57,7 +57,8 @@ class CountSeries:
     dichte Count-Matrix (Paare x Bins). Genau diese Reihe ist der LSTM-Input."""
 
     def __init__(self, ev: SharedLinkEval):
-        raw = ev._load_raw()                           # Spalten: u, i, bin_idx, count (Superedge)
+        self.ev = ev                                   # kept so the training set can use the same candidates
+        raw = ev._load_raw()                           # columns: u, i, bin_idx, count (super-edge)
         self.n_bins = int(raw["bin_idx"].max()) + 1
         # eindeutige Paare -> Zeilenindex
         pairs = raw[["u", "i"]].drop_duplicates().reset_index(drop=True)
@@ -86,29 +87,49 @@ class CountSeries:
 # 3) TRAININGS-DATENSATZ (Sliding Windows ueber alle Paare im Trainingszeitraum)
 # ===========================================================================
 class WindowDataset(Dataset):
-    def __init__(self, cs: CountSeries, cfg: LSTMConfig, train_end_bin: int, rng):
-        self.cs = cs; self.lb = cfg.lookback
-        # alle (Zeilen-, t)-Indizes mit gueltigem Fenster im Trainingszeitraum
-        n_rows = cs.counts.shape[0]
-        ts = np.arange(cfg.lookback, train_end_bin)
-        rows = np.arange(n_rows)
-        # kartesisches Produkt, dann subsamplen
-        total = n_rows * len(ts)
-        if total > cfg.max_train_samples:
-            ridx = rng.integers(0, n_rows, size=cfg.max_train_samples)
-            tidx = rng.integers(cfg.lookback, train_end_bin, size=cfg.max_train_samples)
-        else:
-            ridx = np.repeat(rows, len(ts)); tidx = np.tile(ts, n_rows)
-        self.row = ridx.astype(np.int32); self.t = tidx.astype(np.int32)
-        print(f"Trainingsfenster: {len(self.row):,} (von theoretisch {total:,})")
+    """Training windows drawn from the SAME candidate set that shared_eval uses
+    for scoring (positives + negatives at neg_ratio).
 
-    def __len__(self): return len(self.row)
+    Sampling uniformly over the raw count matrix instead would train on a very
+    different distribution than we evaluate on: the full matrix is 98.9% zeros
+    (mean 0.013), the 1:5 candidate set is 83.3% zeros (mean 0.189). A model
+    fitted on the first one minimises its MSE by predicting near zero, which is
+    systematically too low on the second - the LSTM ended up worse than simply
+    predicting the mean. Using the candidates here keeps the baseline on the
+    same footing as the hybrid, which trains on these candidates too.
+    """
+
+    def __init__(self, cs: CountSeries, cfg: LSTMConfig, train_end_bin: int, rng,
+                 split: str = "train"):
+        self.cs = cs; self.lb = cfg.lookback
+        cand = cs.ev.build_candidates(split)
+        u = cand["u"].to_numpy(); i = cand["i"].to_numpy()
+        b = cand["bin_idx"].to_numpy(); y = cand["count"].to_numpy(dtype=np.float32)
+
+        if split == "train" and len(cand) > cfg.max_train_samples:
+            sel = rng.choice(len(cand), cfg.max_train_samples, replace=False)
+            u, i, b, y = u[sel], i[sel], b[sel], y[sel]
+
+        # precompute the lookback windows (vectorised; the per-item dict lookup
+        # was the bottleneck in the old version)
+        rows = np.array([cs.pair_to_row.get((int(a), int(c)), -1)
+                         for a, c in zip(u, i)], dtype=np.int64)
+        t_idx = b[:, None] - self.lb + np.arange(self.lb)[None, :]     # (N, lb)
+        ok = (t_idx >= 0) & (rows[:, None] >= 0)
+        X = cs.counts[np.clip(rows, 0, None)[:, None],
+                      np.clip(t_idx, 0, cs.n_bins - 1)]
+        self.X = np.where(ok, X, 0.0).astype(np.float32)
+        self.y = y
+
+        if split == "train":
+            print(f"Training windows: {len(self.y):,} from shared_eval candidates "
+                  f"| zeros {100.0 * (y == 0).mean():.1f}% | mean target {y.mean():.4f}")
+
+    def __len__(self): return len(self.y)
 
     def __getitem__(self, k):
-        r = int(self.row[k]); t = int(self.t[k])
-        x = self.cs.counts[r, t - self.lb:t].copy()          # (lookback,)
-        y = self.cs.counts[r, t]                              # Skalar
-        return torch.from_numpy(x).unsqueeze(-1), torch.tensor(y, dtype=torch.float32)
+        return (torch.from_numpy(self.X[k]).unsqueeze(-1),
+                torch.tensor(self.y[k], dtype=torch.float32))
 
 
 # ===========================================================================
@@ -132,11 +153,21 @@ class LSTMForecaster(nn.Module):
 # ===========================================================================
 # 5) TRAINING
 # ===========================================================================
-def train(cfg, cs, model, train_end_bin, device, rng):
+def train(cfg, cs, model, train_end_bin, device, rng, patience: int = 0,
+          verbose: bool = True):
+    """patience > 0 enables early stopping on validation MSE."""
     ds = WindowDataset(cs, cfg, train_end_bin, rng)
     dl = DataLoader(ds, batch_size=cfg.batch_size, shuffle=True, num_workers=0)
     opt = torch.optim.Adam(model.parameters(), lr=cfg.lr)
     loss_fn = nn.MSELoss()
+
+    vX = vy = None
+    if patience > 0:                      # windows built once, not per epoch
+        vds = WindowDataset(cs, cfg, train_end_bin, rng, split="val")
+        vX = torch.from_numpy(vds.X).unsqueeze(-1).to(device)
+        vy = torch.from_numpy(vds.y).to(device)
+
+    best, best_state, bad, stopped_at = float("inf"), None, 0, cfg.epochs
     for ep in range(1, cfg.epochs + 1):
         model.train(); total, nb = 0.0, 0
         for x, y in dl:
@@ -145,7 +176,30 @@ def train(cfg, cs, model, train_end_bin, device, rng):
             loss = loss_fn(model(x), y)
             loss.backward(); opt.step()
             total += loss.item(); nb += 1
-        print(f"Epoche {ep:2d}/{cfg.epochs} | MSE {total/max(1,nb):.4f}")
+        msg = f"Epoche {ep:2d}/{cfg.epochs} | MSE {total/max(1,nb):.4f}"
+
+        if patience > 0:
+            model.eval()
+            with torch.no_grad():
+                out = torch.cat([model(vX[s:s + 8192]) for s in range(0, len(vX), 8192)])
+                vmse = float(((out - vy) ** 2).mean())
+            msg += f" | val MSE {vmse:.4f}"
+            if vmse < best:
+                best, bad = vmse, 0
+                best_state = {k: v.detach().clone() for k, v in model.state_dict().items()}
+            else:
+                bad += 1
+                if bad >= patience:
+                    stopped_at = ep
+                    if verbose:
+                        print(msg + f"  -> early stop (best {best:.4f})")
+                    break
+        if verbose:
+            print(msg)
+
+    if best_state is not None:
+        model.load_state_dict(best_state)
+    model.epochs_run = stopped_at
     return model
 
 

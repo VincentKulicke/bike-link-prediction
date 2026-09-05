@@ -57,50 +57,94 @@ def make_pack(model: GraphMixer, ef, dt, msk, own, neigh_mean, device):
 # ===========================================================================
 # 1) TRAINING
 # ===========================================================================
-def train(cfg: GMConfig, data: GraphMixerData, model: GraphMixer, device) -> GraphMixer:
+def train(cfg: GMConfig, data: GraphMixerData, model: GraphMixer, device,
+          ev: SharedLinkEval | None = None, patience: int = 0,
+          verbose: bool = True) -> GraphMixer:
+    """Train GraphMixer on the same candidate distribution it is scored on.
+
+    The previous version drew one negative per positive *edge event*, i.e. a
+    50 % positive rate, while shared_eval scores a 1:5 mix (16.7 %). That left
+    the model ~2.5x over-confident (mean score 0.409 against a true rate of
+    0.166) and cost 0.219 F1 at threshold 0.5 -- almost half of its apparent
+    gap to the hybrid was calibration, not modelling. It also queried at event
+    timestamps while evaluation queries at bin starts.
+
+    Now both come from ev.build_candidates(), exactly like the hybrid.
+
+    patience > 0 enables early stopping on validation AP.
+    """
     rng = np.random.default_rng(cfg.seed)
     opt = torch.optim.Adam(model.parameters(), lr=cfg.lr)
     loss_fn = nn.BCEWithLogitsLoss()
+    ev = ev or SharedLinkEval()
 
-    tr_mask, _, _ = data.split_masks(cfg.train_end_s, cfg.val_end_s)
-    edges = data.edges
-    u_all = edges["u"].to_numpy(); i_all = edges["i"].to_numpy(); ts_all = edges["ts"].to_numpy(float)
-    tr_idx = np.where(tr_mask)[0]
-    nodes = np.arange(1, data.num_nodes + 1)
-    print(f"Trainingskanten: {len(tr_idx):,}")
+    cand = ev.build_candidates("train")
+    if len(cand) > cfg.max_train_pairs:                 # uniform -> prior kept
+        cand = cand.iloc[rng.choice(len(cand), cfg.max_train_pairs,
+                                    replace=False)]
+    u_all = cand["u"].to_numpy() + 1                    # canonical -> 1-indexed
+    i_all = cand["i"].to_numpy() + 1
+    t_all = cand["bin_idx"].to_numpy() * cfg.bin_seconds
+    y_all = cand["label"].to_numpy(np.float32)
+    if verbose:
+        print(f"Trainingspaare: {len(u_all):,} | positiv {100*y_all.mean():.1f}%")
 
-    bs = cfg.batch_size
+    best, best_state, bad, bs = -1.0, None, 0, cfg.batch_size
     for ep in range(1, cfg.epochs + 1):
         model.train()
-        perm = rng.permutation(tr_idx)
+        perm = rng.permutation(len(u_all))
         total, nb = 0.0, 0
         for s in range(0, len(perm), bs):
             b = perm[s:s + bs]
-            u = u_all[b]; i = i_all[b]; t = ts_all[b]
-            # Negative: gleicher Quellknoten u, zufälliges Ziel i_neg != u
-            i_neg = rng.choice(nodes, size=len(b))
-            resample = (i_neg == u)
-            while resample.any():
-                i_neg[resample] = rng.choice(nodes, size=int(resample.sum()))
-                resample = (i_neg == u)
-
-            # Rohdaten sammeln (Abfragezeit = Ereigniszeit t; nur Ereignisse < t)
-            u_pack = make_pack(model, *data.get_batch(u, t, cfg.num_neighbors), device)
-            ipos_pack = make_pack(model, *data.get_batch(i, t, cfg.num_neighbors), device)
-            ineg_pack = make_pack(model, *data.get_batch(i_neg, t, cfg.num_neighbors), device)
-
-            pos_logit = model(u_pack, ipos_pack)
-            neg_logit = model(u_pack, ineg_pack)
-            logits = torch.cat([pos_logit, neg_logit])
-            labels = torch.cat([torch.ones_like(pos_logit), torch.zeros_like(neg_logit)])
+            tq = t_all[b]
+            u_pack = make_pack(model, *data.get_batch(u_all[b], tq, cfg.num_neighbors), device)
+            i_pack = make_pack(model, *data.get_batch(i_all[b], tq, cfg.num_neighbors), device)
+            logit = model(u_pack, i_pack)
+            labels = torch.as_tensor(y_all[b], dtype=torch.float32, device=device)
 
             opt.zero_grad()
-            loss = loss_fn(logits, labels)
+            loss = loss_fn(logit, labels)
             loss.backward()
             opt.step()
             total += loss.item(); nb += 1
-        print(f"Epoche {ep:2d}/{cfg.epochs} | Loss {total/max(1,nb):.4f}")
+
+        msg = f"Epoche {ep:2d}/{cfg.epochs} | Loss {total/max(1,nb):.4f}"
+        if patience > 0:
+            ap = _val_ap(cfg, data, model, ev, device)
+            msg += f" | val AP {ap:.4f}"
+            if ap > best:
+                best, bad = ap, 0
+                best_state = {k: v.detach().clone() for k, v in model.state_dict().items()}
+            else:
+                bad += 1
+                if bad >= patience:
+                    if verbose:
+                        print(msg + f"  -> early stop (best {best:.4f})")
+                    break
+        if verbose:
+            print(msg)
+
+    if best_state is not None:
+        model.load_state_dict(best_state)
     return model
+
+
+@torch.no_grad()
+def _val_ap(cfg: GMConfig, data: GraphMixerData, model: GraphMixer,
+            ev: SharedLinkEval, device) -> float:
+    """Validation AP, used only for early stopping."""
+    from sklearn.metrics import average_precision_score
+    model.eval()
+    cand = ev.build_candidates("val")
+    u = cand["u"].to_numpy() + 1; i = cand["i"].to_numpy() + 1
+    tq = cand["bin_idx"].to_numpy() * cfg.bin_seconds
+    out = np.zeros(len(cand), dtype=np.float32)
+    for s in range(0, len(cand), 4096):
+        sl = slice(s, s + 4096)
+        up = make_pack(model, *data.get_batch(u[sl], tq[sl], cfg.num_neighbors), device)
+        ip = make_pack(model, *data.get_batch(i[sl], tq[sl], cfg.num_neighbors), device)
+        out[sl] = torch.sigmoid(model(up, ip)).cpu().numpy()
+    return float(average_precision_score(cand["label"].to_numpy(), out))
 
 
 # ===========================================================================
