@@ -23,6 +23,12 @@ predictions/
 **/results/*.gif
 **/results/*.png
 
+# Ueberholte Zwischenstaende (Backups aus der Stash-Wiederherstellung) und der
+# Kachel-Cache der Karten-Demo. Letzterer ist ~17 MB und wird von basemap.py bei
+# Bedarf neu geladen; OSM-Kacheln gehoeren ohnehin nicht ins Repo.
+**/results/_veraltet/
+**/results/_tiles/
+
 # Rohdaten (nicht ins Repo – siehe README)
 *.zip
 data/raw/
