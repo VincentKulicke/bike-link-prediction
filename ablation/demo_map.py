@@ -115,7 +115,8 @@ def main():
                 t1="Realität", t2="Vorhersage (Top-%d)" % K, t3="Abgleich",
                 s1="%d Verbindungen\n%d Fahrten" % (K, int(truth["count"].sum())),
                 s2="%d höchstbewertete Paare\ndavon %d korrekt" % (K, n_tp),
-                s3="%d getroffen (Precision@%d = %.2f)\n%d falsch, %d verpasst"
+                s3="%d richtig positiv (Precision@%d = %.2f)\n"
+                   "%d falsch positiv, %d falsch negativ"
                    % (n_tp, K, n_tp / K, K - n_tp, K - n_tp),
                 foot="Jede Linie = ein Stationspaar · Dicke ∝ Fahrtenzahl · "
                      "Kartenausschnitt Jersey City / Hoboken, ca. %.1f × %.1f km"),
@@ -123,7 +124,8 @@ def main():
                 t1="Reality", t2="Prediction (top %d)" % K, t3="Comparison",
                 s1="%d connections\n%d trips" % (K, int(truth["count"].sum())),
                 s2="%d highest-scoring pairs\n%d of them correct" % (K, n_tp),
-                s3="%d hit (precision@%d = %.2f)\n%d wrong, %d missed"
+                s3="%d true positive (precision@%d = %.2f)\n"
+                   "%d false positive, %d false negative"
                    % (n_tp, K, n_tp / K, K - n_tp, K - n_tp),
                 foot="Each line = one station pair · width ∝ trip count · "
                      "Jersey City / Hoboken, about %.1f × %.1f km"),
@@ -136,7 +138,9 @@ def main():
     panel(axes[0], L["t1"], t_edges, TEAL, X, Y, in_box, L["s1"])
     panel(axes[1], L["t2"], p_edges, MINT, X, Y, in_box, L["s2"])
 
-    # panel 3: hits muted, misses and false alarms in colour
+    # Panel 3: true positives muted, the two error types in colour. Grey works
+    # here because the background is white -- the tile variant needs its own
+    # colour for them, see demo_map_tiles.py.
     ax = axes[2]
     hits = list(zip(top.u[tp_mask], top.i[tp_mask], np.ones(n_tp)))
     fps = list(zip(top.u[~tp_mask], top.i[~tp_mask], np.ones(K - n_tp)))
@@ -149,9 +153,9 @@ def main():
     touched = sorted({n for e in hits + fps + fns for n in e[:2]})
     ax.scatter(X[touched], Y[touched], s=26, color=NAVY, zorder=3,
                edgecolor="white", linewidth=0.7)
-    for lab, col in ((("getroffen" if lang == "de" else "hit"), MUTED),
-                     (("verpasst" if lang == "de" else "missed"), AMBER),
-                     (("Fehlalarm" if lang == "de" else "false alarm"), TERRA)):
+    for lab, col in ((("richtig positiv" if lang == "de" else "true positive"), MUTED),
+                     (("falsch negativ" if lang == "de" else "false negative"), AMBER),
+                     (("falsch positiv" if lang == "de" else "false positive"), TERRA)):
         ax.plot([], [], color=col, lw=2.4, label=lab)
     ax.legend(loc="upper left", fontsize=9.5, frameon=True, facecolor="white",
               edgecolor=BORDER, borderpad=0.5, framealpha=0.92)
