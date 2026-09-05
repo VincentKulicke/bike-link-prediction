@@ -1,0 +1,79 @@
+model,seed,test_ap,test_auc,test_f1,test_mse,epochs_run,sec,error
+Hybrid GRU,42,,,,,0,100.3,cuDNN error: CUDNN_STATUS_INTERNAL_ERROR
+Hybrid CNN,42,,,,,0,0.0,"CUDA error: an illegal instruction was encountered
+Search for `cudaErrorIllegalInstruction' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel"
+LSTM,42,,,,,0,0.0,"CUDA error: an illegal instruction was encountered
+Search for `cudaErrorIllegalInstruction' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel"
+GraphMixer,42,,,,,0,0.0,"CUDA error: an illegal instruction was encountered
+Search for `cudaErrorIllegalInstruction' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel"
+Hybrid GRU,43,,,,,0,0.0,"CUDA error: an illegal instruction was encountered
+Search for `cudaErrorIllegalInstruction' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel"
+Hybrid CNN,43,,,,,0,0.0,"CUDA error: an illegal instruction was encountered
+Search for `cudaErrorIllegalInstruction' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel"
+LSTM,43,,,,,0,0.0,"CUDA error: an illegal instruction was encountered
+Search for `cudaErrorIllegalInstruction' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel"
+GraphMixer,43,,,,,0,0.0,"CUDA error: an illegal instruction was encountered
+Search for `cudaErrorIllegalInstruction' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel"
+Hybrid GRU,44,,,,,0,0.0,"CUDA error: an illegal instruction was encountered
+Search for `cudaErrorIllegalInstruction' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel"
+Hybrid CNN,44,,,,,0,0.0,"CUDA error: an illegal instruction was encountered
+Search for `cudaErrorIllegalInstruction' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel"
+LSTM,44,,,,,0,0.0,"CUDA error: an illegal instruction was encountered
+Search for `cudaErrorIllegalInstruction' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel"
+GraphMixer,44,,,,,0,0.0,"CUDA error: an illegal instruction was encountered
+Search for `cudaErrorIllegalInstruction' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel"
+Hybrid GRU,45,,,,,0,0.0,"CUDA error: an illegal instruction was encountered
+Search for `cudaErrorIllegalInstruction' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel"
+Hybrid CNN,45,,,,,0,0.0,"CUDA error: an illegal instruction was encountered
+Search for `cudaErrorIllegalInstruction' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel"
+LSTM,45,,,,,0,0.0,"CUDA error: an illegal instruction was encountered
+Search for `cudaErrorIllegalInstruction' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel"
+GraphMixer,45,,,,,0,0.0,"CUDA error: an illegal instruction was encountered
+Search for `cudaErrorIllegalInstruction' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel"
+Hybrid GRU,46,,,,,0,0.0,"CUDA error: an illegal instruction was encountered
+Search for `cudaErrorIllegalInstruction' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel"
+Hybrid CNN,46,,,,,0,0.0,"CUDA error: an illegal instruction was encountered
+Search for `cudaErrorIllegalInstruction' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel"
+LSTM,46,,,,,0,0.0,"CUDA error: an illegal instruction was encountered
+Search for `cudaErrorIllegalInstruction' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel"
+GraphMixer,46,,,,,0,0.0,"CUDA error: an illegal instruction was encountered
+Search for `cudaErrorIllegalInstruction' in https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__TYPES.html for more information.
+CUDA kernel"
+Hybrid GRU,42,0.923872143412294,0.9849904004011459,0.8608038201352964,0.08246012717337872,15,173.0,
+Hybrid CNN,42,0.9231066915646378,0.9851978998328235,0.8606213929954938,0.0835738059571406,15,80.7,
+LSTM,42,,,,0.09345393657024774,29,341.2,
+GraphMixer,42,0.9026743812881933,0.9831607198424123,0.8483556397804887,,,129.7,
+Hybrid GRU,43,0.9236813990324165,0.9851375163607791,0.8588354635828769,0.08297328698178302,13,188.0,
+Hybrid CNN,43,0.92307873800032,0.9851670547901548,0.859467219652257,0.08334871384031708,14,107.8,
+LSTM,43,,,,0.09607820502146333,12,149.5,
+GraphMixer,43,0.9014988610289255,0.9831127705998338,0.8473969113198535,,,73.8,
+Hybrid GRU,44,0.9234869477157155,0.98526767284678,0.8585616020188043,0.08297449011664668,15,160.7,
+Hybrid CNN,44,0.9227035777335961,0.9850892953317643,0.8600410578432558,0.08284146724414049,21,112.3,
+LSTM,44,,,,0.0969027616095332,13,160.8,
+GraphMixer,44,0.9006812915713406,0.9830315404286503,0.8464457974223136,,,84.4,
+Hybrid GRU,45,0.9235629554565048,0.9849776087725161,0.8607493488278901,0.08199703308286116,16,171.8,
+Hybrid CNN,45,0.9235548779074145,0.9850832093539869,0.8604438797792512,0.0825824887393117,19,102.4,
+LSTM,45,,,,0.09570009583613927,17,207.4,
+GraphMixer,45,0.9039728735059613,0.9833742624455035,0.8455100473052196,,,73.5,
+Hybrid GRU,46,0.9243720504644668,0.9849595410896893,0.8589497735525725,0.08281813975985308,19,207.4,
+Hybrid CNN,46,0.9231621318111042,0.9850576519164386,0.8594954165652632,0.08299707474737944,18,101.4,
+LSTM,46,,,,0.0950528371597063,10,129.5,
+GraphMixer,46,0.9008470680988541,0.9829869022243335,0.8466901684292988,,,74.3,

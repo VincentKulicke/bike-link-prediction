@@ -11,9 +11,17 @@ env/
 
 # Modell-Ausgaben / Artefakte
 predictions/
-results/
 *.pt
 *.ckpt
+
+# Ergebnisse: die kleinen Auswertungsdateien gehoeren ins Repo, weil alle
+# Skripte ihre Konfiguration ueber best_cfg() aus hpo_final_*.csv lesen.
+# Ausgeschlossen bleibt nur, was gross und jederzeit neu berechenbar ist.
+**/results/demo_*_scored*.csv
+**/results/*_alt.csv
+**/results/*.bak_prefix
+**/results/*.gif
+**/results/*.png
 
 # Rohdaten (nicht ins Repo – siehe README)
 *.zip

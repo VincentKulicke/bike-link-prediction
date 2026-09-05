@@ -1,66 +1,78 @@
 # Ergebnisgrundlage für die Präsentation
 
 Basis für alle Zahlen, Aussagen und Schlussfolgerungen der Abschlusspräsentation.
-Stand: 27.07.2026. Quelle: `bike-link-prediction-Final_Update/`.
+Stand: **05.09.2026**, nach der finalen Hyperparameter-Suche (361 Läufe, 21 h)
+und zwei Korrekturen an den Baselines.
 
 ---
 
 ## 0. Welche Zahlen gelten — Quellenhierarchie
 
-Es existieren mehrere Ergebnisstände, die sich teilweise widersprechen. Verbindlich ist:
+1. **`final_eval_summary.csv`** — 4 Modelle × 5 Seeds mit den Siegerkonfigurationen
+   der finalen Suche. Diese Zahlen tragen die Präsentation.
+2. `hpo_final_comparison.md` — für Aussagen über Hyperparameter-Wirkung.
+3. `ranking_comparison.md` — 1:99-Protokoll.
+4. `branches_comparison.md` — Komponenten-Ablation.
+5. `protocol_gap.csv` — Verhalten auf allen Paaren statt auf der Stichprobe.
+6. `runtime_summary.csv` — Kosten.
 
-1. **`seeds_comparison.md` (5 Seeds, mit ± Streuung)** — höchste Priorität. Diese Zahlen tragen die Präsentation.
-2. `ranking_comparison.md` (1:99-Protokoll) — für die harte Metrik.
-3. `factors_comparison.md` — für Aussagen über Tuning vs. Rauschen.
-4. `ablation_comparison.md` / `comparison.md` (Einzellauf) — **nur** wo keine Seed-Zahl existiert.
+Die Konfigurationen werden von allen Auswertungsskripten aus `hpo_final_*.csv`
+**gelesen**, nicht im Code hinterlegt. Zahlen und Konfiguration können damit
+nicht auseinanderlaufen.
 
 ### ⚠️ Zahlen, die NICHT mehr verwendet werden dürfen
 
 | Veraltet | Korrekt | Grund |
 |---|---|---|
-| GraphMixer default AP **0,653** | **0,596 ± 0,023** | Alte Prediction-Datei (22. Juni) reproduziert nicht; zwei unabhängige aktuelle Messungen stimmen überein |
-| GraphMixer HPO AP **0,756** | **0,701 ± 0,038** | Single-Seed-Wert, durch Seed-Sweep korrigiert |
-| „LSTM-Tuning verbessert MSE 0,239 → 0,233" | **hinfällig** | Artefakt einer verzerrten Zielfunktion; nach dem Fix wählt die Suche den Default |
-| Grid-Spreads aus Einzelläufen | um 28–34 % nach unten korrigiert | Enthielten Seed-Rauschen (siehe `factors_comparison.md`) |
+| GraphMixer AP **0,701** | **0,9019 ± 0,0014** | Trainierte auf 50 % Positivrate, bewertet wurde 1:5 (16,7 %) |
+| LSTM MSE **0,116** | **0,0954 ± 0,0013** | `lookback` war nie getunt; 192 statt 48 |
+| Hybrid AP **0,9233** | **0,9238 ± 0,0004** | neue Siegerkonfiguration, 5 Seeds |
+| GraphMixer Seed-σ **0,0375** | **0,0014** | Artefakt des defekten Trainings |
+| „Hybrid ist pareto-dominant, 19× schneller" | **9× bei der Inferenz** | GraphMixer trainiert jetzt schneller |
+| „Der temporale Branch trägt nichts bei" | **redundant, nicht nutzlos** | siehe Abschnitt 10 |
+| σ-Angaben aus `factors_comparison.md` | überholt | altes Seed-Rauschen, siehe Abschnitt 7 |
 
-Die Korrektur macht den Vorsprung des Hybridmodells **größer**, nicht kleiner.
+> Anders als bei der letzten Korrekturrunde macht diese Runde den Vorsprung des
+> Hybridmodells **kleiner**, nicht größer. Der Abstand zu GraphMixer schrumpft
+> von 0,222 auf 0,022 AP.
 
 ---
 
-## 1. Versuchsaufbau (Grundlage jeder Zahl)
+## 1. Versuchsaufbau (unverändert)
 
-- **Daten:** NYC Citi Bike, 16.05.–14.06.2024. Faktisch Jersey City / Hoboken (99,7 % des Verkehrs). 232 aktive Stationen.
-- **Zeitraster:** 30-Minuten-Bins, insgesamt 1.379 Bins.
+- **Daten:** Citi Bike, 16.05.–14.06.2024, faktisch Jersey City / Hoboken. 232 Stationen.
+- **Zeitraster:** 30-Minuten-Bins, 1.379 Bins.
 - **Zielgröße:** `count = Δ num_rides` je (u, i, bin); `label = 1` wenn `count > 0`.
-- **Split** (strikt chronologisch, leakage-frei):
+- **Split** strikt chronologisch: Train 965 Bins / Val 192 / Test 175.
+- **Kandidaten:** Positive + geseedete Negative im Verhältnis **1:5** (Seed 42),
+  identisch für alle Modelle über `shared_eval`.
+- **Zusätzliche Protokolle:** 1-vs-99-Ranking (3.000 Queries) und das
+  **vollständige Gitter** (alle 232 × 231 Paare je Fenster).
 
-| Split | Bins | Positive Zellen | Fahrten |
-|---|---|---|---|
-| Train | 965 | 62.343 | 72.752 |
-| Val | 192 | 13.617 | 16.099 |
-| Test | 175 | 12.095 | 13.743 |
-
-- **Kandidaten:** Positive + geseedete Negative im Verhältnis **1:5** (Seed 42), identisch für alle Modelle über `shared_eval`.
-- **Zusätzliches hartes Protokoll:** 1-vs-99-Ranking, 3.000 Queries pro Split.
+Testsplit: 12.095 positive Zellen inklusive Selbstschleifen, **11.552** ohne.
+Selbstschleifen (Rundfahrten, 5,4 % der Zellen) sind in der Gitter-Auswertung
+beidseitig ausgeschlossen.
 
 ---
 
 ## 2. Referenzpunkte — womit die Ergebnisse zu vergleichen sind
 
-**Ohne diese beiden Zeilen ist keine Zahl interpretierbar. Sie gehören auf die Ergebnisfolie.**
+**Ohne diese Zeilen ist keine Zahl interpretierbar.**
 
 | Referenz | 1:5 AP | 1:5 AUC | 1:5 F1 | Count MSE | 1:99 MRR |
 |---|---|---|---|---|---|
 | **Zufall** | 0,166 | 0,500 | — | — | 0,052 |
-| **Frequenz-Heuristik** | **0,891** | 0,973 | **0,000** | **0,238** | noch nicht gemessen |
+| **Frequenz-Heuristik** | **0,8914** | 0,9732 | 0,000 | 0,238 | **0,409** |
 
-Die Frequenz-Heuristik ist der einfachste denkbare Ansatz: *Score eines Paares = mittlere Fahrten pro Bin im Trainingszeitraum.* Kein Lernen, drei Zeilen Code (`_frequency_baseline` in `shared_eval.py`). Test-Werte oben, Validation: AP 0,885 / MSE 0,258.
+Die Heuristik ist der einfachste denkbare Ansatz: *Score = mittlere Fahrten pro
+Bin im Trainingszeitraum.* Kein Lernen, drei Zeilen Code.
 
-**Warum das zentral ist:**
-- Die AP-Zufallsbasis liegt bei **0,166**, nicht bei 0. Eine AP von 0,92 muss dagegen gelesen werden.
-- Die Heuristik erreicht binär AP 0,891 — **sie schlägt GraphMixer (0,596) deutlich.**
-- Beim Count liegt sie mit MSE 0,238 **deutlich hinter dem LSTM (0,116)** — dort trägt die Zeitreihe also nachweislich etwas bei, was eine konstante Rate nicht liefert.
-- Aber: Ihr **F1 = 0,000** — sie rankt gut, trifft aber keine brauchbare Entscheidung. Das Hybridmodell hat F1 0,860.
+**Was das bedeutet:**
+- Die AP-Zufallsbasis liegt bei **0,166**, nicht bei 0.
+- Binär schlägt die Heuristik den Hybrid nicht (0,891 gegenüber 0,924) — der
+  Abstand beträgt aber nur **+0,032 AP**.
+- **Unter 1:99 gewinnt die Heuristik** (MRR 0,409 gegenüber 0,408). Siehe Abschnitt 5.
+- Ihr F1 = 0,000: Sie rankt gut, trifft aber keine brauchbare Schwellenentscheidung.
 
 ---
 
@@ -68,151 +80,247 @@ Die Frequenz-Heuristik ist der einfachste denkbare Ansatz: *Score eines Paares =
 
 | Modell | AP | AUC | F1 |
 |---|---|---|---|
-| **Hybrid GraphSAGE+GRU (default)** | **0,9233 ± 0,0008** | 0,9851 ± 0,0003 | 0,8603 ± 0,0011 |
-| Hybrid GraphSAGE+GRU (HPO) | 0,9233 ± 0,0006 | 0,9849 ± 0,0002 | 0,8597 ± 0,0010 |
-| Hybrid GraphSAGE+1D-CNN (HPO) | 0,9226 ± 0,0005 | 0,9848 ± 0,0002 | 0,8599 ± 0,0012 |
-| Frequenz-Heuristik | 0,891 | 0,973 | 0,000 |
-| GraphMixer (HPO) | 0,7012 ± 0,0375 | 0,9095 ± 0,0100 | 0,4842 ± 0,0173 |
-| GraphMixer (default) | 0,5957 ± 0,0233 | 0,8979 ± 0,0063 | 0,5589 ± 0,0130 |
-| Zufall | 0,166 | 0,500 | — |
+| **Hybrid GRU** | **0,9238 ± 0,0004** | 0,9851 ± 0,0001 | 0,8596 ± 0,0011 |
+| Hybrid CNN | 0,9231 ± 0,0003 | 0,9851 ± 0,0001 | 0,8600 ± 0,0005 |
+| GraphMixer | 0,9019 ± 0,0014 | 0,9831 ± 0,0002 | 0,8469 ± 0,0011 |
+| Frequenz-Heuristik | 0,8914 | 0,9732 | 0,000 |
+
+| Vergleich | Differenz | σ | |
+|---|---|---|---|
+| Hybrid GRU vs. GraphMixer | +0,0219 | 15,3 | signifikant |
+| Hybrid GRU vs. Hybrid CNN | +0,0007 | 1,4 | **nicht signifikant** |
+
+Bemerkenswert: Die **AUC ist nahezu gleich** (0,9851 gegenüber 0,9831). Der
+Unterschied steckt fast vollständig in der AP, also im hochbewerteten Bereich —
+genau dort, wo es bei Link Prediction zählt.
+
+---
 
 ## 4. Hauptergebnis Count (5 Seeds, Test)
 
-| Modell | MSE | MAE |
-|---|---|---|
-| **Hybrid GraphSAGE+GRU (HPO)** | **0,0820 ± 0,0003** | 0,0927 ± 0,0014 |
-| Hybrid GraphSAGE+GRU (default) | 0,0824 ± 0,0004 | 0,0928 ± 0,0008 |
-| Hybrid GraphSAGE+1D-CNN (HPO) | 0,0821 ± 0,0002 | 0,0922 ± 0,0012 |
-| LSTM (default = HPO-Sieger) | 0,1164 ± 0,0008 | 0,1593 ± 0,0036 |
-| Frequenz-Heuristik | 0,238 | 0,180 |
+| Modell | MSE |
+|---|---|
+| **Hybrid GRU** | **0,0826 ± 0,0004** |
+| Hybrid CNN | 0,0831 ± 0,0004 |
+| LSTM | 0,0954 ± 0,0013 |
+| Frequenz-Heuristik | 0,238 |
+| konstant null | 0,263 |
 
-**Der Count-Task ist das stärkste Ergebnis der Arbeit:** Faktor ~2,9 besser als die Frequenz-Heuristik, ~1,4 besser als das LSTM.
-
-> **Korrektur 2026-08-28.** Frühere Fassungen nannten hier LSTM 0,2404 ± 0,0038 (default) und 0,2400 ± 0,0047 (HPO) sowie die Aussage, das LSTM sei „nicht besser als eine konstante Rate pro Paar". Beides war Folge eines Aufbaufehlers: Die Baseline zog ihre Trainingsfenster gleichverteilt aus der rohen Count-Matrix (98,9 % Nullen, Mittel 0,013), wurde aber auf den 1:5-Kandidaten bewertet (83,3 % Nullen, Mittel 0,189). Sie lernte dadurch, nahezu null vorherzusagen. Auf derselben Verteilung trainiert erreicht sie **0,1164** und schlägt die Heuristik deutlich. Die Grid-Suche wählt danach den Default-Config, es gibt also keinen Tuning-Gewinn mehr zu berichten.
+Hybrid gegenüber LSTM: −0,0128 MSE = **9,4 σ**, signifikant. Der Abstand ist
+gegenüber dem früheren Stand (0,0344) auf ein Drittel geschrumpft, weil die
+Fensterlänge des LSTM erstmals getunt wurde.
 
 ---
 
 ## 5. Hartes Protokoll: 1-vs-99-Ranking (Test)
 
-| Modell | MRR | Hits@1 | Hits@5 |
-|---|---|---|---|
-| Hybrid GRU (default) | **0,402** | 0,250 | 0,567 |
-| Hybrid GRU (HPO) | 0,402 | 0,249 | 0,567 |
-| GraphMixer (default) | 0,342 | 0,196 | 0,490 |
-| GraphMixer (HPO) | 0,315 | 0,173 | 0,449 |
-| Zufall | 0,052 | 0,010 | — |
+Jedes Ziel wird gegen 99 Alternativen **mit demselben Quellknoten und
+Zeitfenster** gerankt — die Frage lautet „welches Ziel?", nicht „ob überhaupt?".
 
-**Erkenntnisse:**
-1. Das 1:5-Protokoll verdeckte Spielraum. MRR 0,402 statt AP 0,92 — die „Sättigung" war teils Artefakt des leichten Protokolls.
-2. Der Vorsprung bleibt real, ist aber ehrlicher: 0,402 vs. 0,342 statt 0,92 vs. 0,60.
-3. ~~**Die HPO-Konfiguration von GraphMixer, ausgewählt auf 1:5-AP, wird unter 1:99 schlechter** (0,342 → 0,315).~~ **Zurückgezogen.** Die Zwei-Faktor-Analyse hat GraphMixers Seed-Rauschen später mit σ ≈ 0,07 AP gemessen — weit größer als diese Differenz. Beide Werte stammen aus Einzelläufen, der Unterschied ist damit nicht vom Rauschen zu trennen. (Konsistent mit `ranking_comparison.md`.)
-
----
-
-## 6. Hyperparameter-Optimierung
-
-Suchräume (jeweils drei einflussreichste Achsen, Selektion nur auf Validation, Test genau einmal):
-
-| Modell | Suchraum | Configs | Selektionsmetrik |
-|---|---|---|---|
-| GraphMixer | lr × hidden {64,128,256} × mixer_layers {1,2} | 18 | val AP |
-| LSTM | lr × hidden {32,64,128} × num_layers {1,2} | 18 | val MSE |
-| Hybrid GRU | lr × hidden {32,64,128} × λ_count {0,5;1;2} | 27 | val AP |
-| Hybrid CNN | lr × hidden {32,64,128} × kernel {3,5} | 18 | val AP |
-
-**Welche Unterschiede real sind (in gepoolten Standardabweichungen):**
-
-| Vergleich | Differenz | σ | Bewertung |
-|---|---|---|---|
-| Hybrid: HPO vs. default | +0,0000 AP | 0,04 | **kein Effekt** |
-| LSTM: HPO vs. default | — | — | Grid wählt den Default |
-| Hybrid: GRU vs. 1D-CNN | +0,0007 AP | 1,3 | nicht signifikant |
-| GraphMixer: HPO vs. default | +0,1056 AP | 3,4 | **echte Verbesserung** |
-| Hybrid vs. GraphMixer | +0,327 AP | ~12 | **eindeutig** |
-| Hybrid vs. LSTM | −0,034 MSE | ~54 | **eindeutig** |
-
-Nur das schwächste Modell profitiert vom Tuning. Beim Hybridmodell bewegt Tuning nichts.
-
----
-
-## 7. Zwei-Faktor-Analyse: Tuning-Effekt vs. Seed-Rauschen
-
-4 Konfigurationen über den Grid-Bereich × 5 Seeds = 60 Läufe.
-σ_grid korrigiert um das verbleibende Seed-Rauschen: `σ_grid² = var(means) − σ_seed²/n`.
-
-| Modell | σ_seed | σ_grid | σ_grid/σ_seed | Aussagekraft des Grids |
-|---|---|---|---|---|
-| Hybrid GRU | 0,0003 | 0,0028 | **8,2×** | Ranking aussagekräftig |
-| LSTM | 0,0008 | 0,0032 | 4,1× | belastbar |
-| GraphMixer | 0,0700 | 0,0919 | 1,3× | **kaum informativ** |
-
-**Erkenntnisse:**
-1. Das Verhältnis σ_grid/σ_seed sagt, ob eine Grid-Suche überhaupt vertrauenswürdig sein kann.
-2. **GraphMixers Ranking ist teilweise zufällig** — Configs auf Rang 7 und 13 tauschen die Plätze, wenn über 5 Seeds gemittelt wird. Ein einzelner GraphMixer-Lauf ist für sich genommen nicht interpretierbar (±0,100 AP).
-3. **Stabilität unterscheidet sich um zwei Größenordnungen:** σ_seed 0,0003 (Hybrid) vs. 0,0700 (GraphMixer) = Faktor 233. Reproduzierbarkeit ist ein eigenständiges Qualitätsargument.
-4. Der Hyperparameter-Effekt des Hybrids ist zwar systematisch (8,2× über Rauschen), umfasst aber nur 0,0064 AP — **weniger als der Abstand zur Frequenz-Heuristik (0,032 AP).**
-
----
-
-## 8. Kernaussagen für die Präsentation
-
-**① Das Hybridmodell gewinnt auf beiden Aufgaben — auch bei fairem Tuning.**
-Binär AP 0,923 vs. 0,701 (GraphMixer, getunt). Count MSE 0,082 vs. 0,116 (LSTM). ~12σ bzw. ~54σ.
-
-**② Der eigentliche Beitrag liegt beim Count.**
-Binär schlägt das Modell die triviale Frequenz-Heuristik nur um +0,032 AP. Beim Count ist es ~2,9× besser als die Heuristik und ~1,4× besser als das LSTM. Das ist der Ort, an dem die Fusion nachweislich etwas leistet.
-
-**③ Die Graph-Baseline ist schwächer als eine triviale Heuristik — die Zeitreihen-Baseline nicht.**
-GraphMixer (AP 0,596–0,701) liegt deutlich unter der Frequenz-Heuristik (0,891): Für die binäre Aufgabe ist die Paar-Historie ein sehr starkes Signal, das ein temporales Graph-Verfahren hier nicht schlägt. Beim Count dagegen unterbietet das LSTM (MSE 0,116) die Heuristik (0,238) um Faktor 2 — die Zeitreihe trägt dort nachweislich Information, die eine konstante Rate nicht hat.
-
-**④ Das Modell ist robust, die Baseline ist es nicht.**
-σ_seed 0,0003 vs. 0,0700 — Faktor 233. Über 27 Konfigurationen bewegt sich die Validation-AP nur um 0,006; selbst die schlechteste Konfiguration schlägt GraphMixer deutlich.
-
-**⑤ Tuning ist nicht die Stellschraube.**
-HPO bewegt das Hybridmodell nicht (0,04σ), auch nicht unter dem harten 1:99-Protokoll mit echtem Spielraum (MRR 0,402 = 0,402). Verbesserungen müssen über Features/Architektur kommen, nicht über Hyperparameter.
-
-**⑥ Das Evaluationsprotokoll bestimmt das Bild.**
-Unter 1:5 wirkt der Vorsprung dramatisch (0,92 vs. 0,60), unter 1:99 ist er ehrlicher (MRR 0,402 vs. 0,342). Und eine auf 1:5 optimierte Konfiguration kann unter 1:99 schlechter werden (GraphMixer 0,342 → 0,315).
-
----
-
-## 9. Ehrliche Grenzen (gehören auf die Limitations-Folie)
-
-- **Fokussierte Grid-Suche** über drei Achsen pro Modell, nicht erschöpfend. Fest blieben u. a. `epochs`, `dropout`, `batch_size`, `ts_lookback`, `num_neighbors`. Die Lernrate war nachweislich die dominante Achse.
-- **Branch-Ablationen liegen inzwischen vor** (`branches_comparison.md`, 4 Varianten × 3 Seeds) — siehe Abschnitt 10. Offen bleibt, ob die Befunde auch unter dem 1:99-Protokoll gelten.
-- **1:99-Ranking nur für die binären Modelle**, die Frequenz-Heuristik ist dort noch nicht gemessen.
-- **Datensatz ist faktisch Jersey City / Hoboken**, nicht Manhattan — Übertragbarkeit auf größere Netze offen.
-- **Count-Kopf ist nicht konditioniert:** Der Loss läuft unmaskiert über alle Kandidatenpaare. Es ist ein Dual-Head-Multi-Task-Modell, keine Hurdle-Formulierung im engeren Sinne (die E[Y | Y>0] modelliert). Sprachlich sauber: „dual-head" oder „simplified hurdle-style".
-
----
-
-## 10. Welche Komponente trägt das Signal? (beantwortet)
-
-Der Encoder-Tausch GRU ↔ CNN (0,9233 vs. 0,9226) zeigte nur, dass die *Kodierung* austauschbar ist — nicht, ob der Branch überhaupt beiträgt. Dafür wurden Komponenten **entfernt** (4 Varianten × 3 Seeds, identische Parameterzahl):
-
-| entfernt | Δ AP | σ | Δ MSE | σ | Bewertung |
+| Modell | MRR | Hits@1 | Hits@5 | AUC | AP |
 |---|---|---|---|---|---|
-| Paar-Features | −0,0215 | **18,9** | +0,0063 | **14,6** | dominiert beide Aufgaben |
-| Graph-Branch | −0,0029 | 3,2 | +0,0017 | 4,7 | kleiner, aber realer Effekt |
-| temporaler Branch | −0,0005 | 0,6 | +0,0005 | 3,2 | binär nicht nachweisbar, **beim Count real** |
+| **Frequenz-Heuristik** | **0,409** | **0,256** | **0,577** | 0,929 | **0,126** |
+| Hybrid GRU | 0,408 | 0,255 | 0,573 | 0,930 | 0,108 |
+| Hybrid CNN | 0,402 | 0,249 | 0,566 | 0,930 | 0,109 |
+| GraphMixer | 0,343 | 0,196 | 0,487 | 0,915 | 0,073 |
 
-**Die ursprüngliche Vermutung stimmt nur teilweise.** Die Paar-Features dominieren klar, der Graph-Branch trägt messbar bei. Der temporale Branch ist unter binärer AP nicht vom Rauschen zu trennen — **beim Count-Kopf aber sehr wohl** (3,2 σ). Die beiden Köpfe stützen sich also auf unterschiedliche Teile des Modells.
+> **Der wichtigste Vorbehalt der Arbeit.** Kein gelerntes Modell schlägt die
+> triviale Heuristik. Der Hybrid liegt beim MRR gleichauf und bei der AP
+> darunter — nach 361 durchsuchten Konfigurationen.
 
-**Zusammen mit dem korrigierten LSTM ergibt das ein stimmiges Bild:** Eine reine Zeitreihe erreicht beim Count MSE 0,116 — das Signal ist also stark vorhanden. Dass sein Entfernen aus dem Hybrid trotzdem kaum schadet, liegt an der Überlappung: `log1p(frequency)` in den Paar-Features deckt bereits einen Großteil dessen ab, was die 48-Bin-Historie liefert.
+**Und ein Befund, der den GraphMixer-Fix einordnet:** Der Sprung von AP 0,70 auf
+0,90 unter 1:5 überträgt sich **nicht** (MRR 0,342 → 0,343). Die Protokolle
+testen Verschiedenes: 1:5 zieht Negative zufällig über alle Paare und Bins,
+1:99 gegen Alternativen desselben Startpunkts. Der Fix hat die leichtere
+Fähigkeit verbessert.
 
-**Für die Folien:** Die Aussage „die Fusion trägt" ist beim **Count** belegt, binär dagegen nur schwach — dort liegt der Abstand zur Frequenz-Heuristik bei lediglich +0,032 AP.
+---
+
+## 5b. Vollständiges Gitter statt Stichprobe
+
+`protocol_gap.py`, 175 Testfenster × 53.592 Paare = 9,38 Mio., selbes Modell
+für beide Hälften, Selbstschleifen beidseitig ausgeschlossen.
+
+| Protokoll | Paare | Positivrate | TP | FP | Precision | Recall |
+|---|---|---|---|---|---|---|
+| 1:5-Stichprobe | 72.393 | 15,96 % | **10.276** | 2.219 | 0,8224 | **0,8895** |
+| volles Gitter @0,5 | 9.378.600 | 0,12 % | **10.276** | 343.180 | 0,0291 | **0,8895** |
+| volles Gitter, Top-K | 9.378.600 | 0,12 % | 2.448 | — | 0,2119 | — |
+| Zufall | — | 0,12 % | — | — | 0,0012 | — |
+
+Treffer und Recall sind **bitidentisch** — dasselbe Modell findet dieselben
+Fahrten. Nur die Fehlalarme unterscheiden sich (2.219 gegenüber 343.180). Das
+Ranking bleibt stark: Top-K ist **172× besser als Zufall**.
+
+---
+
+## 6. Hyperparameter-Optimierung (finale Suche)
+
+361 Konfigurationen, 21,2 h, Auswahl auf Validierung, Zahlen auf Test.
+
+| Modell | Configs | bester | schlechtester | Δ | σ |
+|---|---|---|---|---|---|
+| LSTM (MSE) | 90 | 0,0935 | 0,1593 | 0,0658 | **51** |
+| Hybrid GRU (AP) | 72 | 0,9239 | 0,9107 | 0,0131 | **33** |
+| GraphMixer (AP) | 91 | 0,9021 | 0,8531 | 0,0490 | **35** |
+| Hybrid CNN (AP) | 108 | 0,9225 | 0,9165 | 0,0060 | 20 |
+
+**Hyperparameter wirken bei jedem Modell hochsignifikant.** Der übliche
+Vergleich „Default gegen HPO" beantwortet eine *andere* Frage — ob die
+Ausgangswahl gut war. Sie war es: Der Default lag im alten Gitter auf Rang 3
+von 27.
+
+**Je Modell dominiert genau eine Achse:**
+
+| Modell | dominante Achse | Spanne | alle übrigen |
+|---|---|---|---|
+| LSTM | **`lookback`** | 0,0619 | < 0,0011 |
+| GraphMixer | `lr` | 0,0167 | ≤ 0,0105 |
+| Hybrid GRU | `lr` | 0,0024 | ≤ 0,0008 |
+| Hybrid CNN | `lr` | 0,0015 | ≤ 0,0010 |
+
+Beim LSTM wirkt die Fensterlänge **56× stärker** als jede andere Achse. Der alte
+Default liegt im neuen Gitter auf **Rang 38 von 90**.
+
+**Siegerkonfigurationen:**
+
+| Modell | Konfiguration |
+|---|---|
+| Hybrid GRU | `lr=1e-3, hidden=256, ts_lookback=48, fusion_hidden=256` |
+| Hybrid CNN | `lr=1e-3, hidden=128, ts_lookback=48, dropout=0` |
+| LSTM | `lr=1e-3, hidden=64, lookback=192, layers=2, dropout=0,2` |
+| GraphMixer | `lr=1e-3, hidden=128, num_neighbors=40, mixer_layers=1` |
+
+**Offene Randlage:** Bei GraphMixer liegt das Optimum bei **allen drei** Achsen
+am oberen Rand — das Optimum ist nicht erreicht. Beim LSTM ist `lookback=192`
+ebenfalls Randwert, die Kurve flacht aber sichtbar ab (48→96: −0,0125;
+96→192: −0,0084).
+
+---
+
+## 7. Seed-Rauschen (ersetzt die alte Zwei-Faktor-Analyse)
+
+Gemessen über 5 Seeds der jeweiligen Siegerkonfiguration:
+
+| Modell | Seed-σ | früher |
+|---|---|---|
+| Hybrid CNN | 0,0003 | 0,0005 |
+| Hybrid GRU | 0,0004 | 0,0006 |
+| LSTM | 0,0013 | 0,0008 |
+| GraphMixer | **0,0014** | **0,0375** |
+
+GraphMixers Rauschen fiel um **Faktor 27** — dasselbe Muster wie beim LSTM-Fix
+(±0,0038 → ±0,0008 damals). Ein Modell, das auf der falschen Verteilung
+trainiert, sitzt nahe an einer degenerierten Lösung, wo Zufall stark durchschlägt.
+
+Das LSTM rauscht jetzt *stärker* als zuvor, weil die Siegerkonfiguration zwei
+Schichten mit Dropout nutzt statt einer ohne.
+
+> `factors_comparison.md` und `seeds_comparison.md` beruhen auf dem alten
+> Rauschen und sind **überholt**.
+
+---
+
+## 8. Kosten (5 Seeds, Mediane)
+
+| Modell | Training | s/Epoche | Inferenz | Speicher | Parameter |
+|---|---|---|---|---|---|
+| **Hybrid CNN** | 99,0 s | 3,30 | **0,228 s** | **1.171 MB** | 151.682 |
+| Hybrid GRU | 158,8 s | 5,29 | 0,410 s | 1.938 MB | 599.298 |
+| LSTM | 158,5 s | 5,28 | 0,481 s | **9.845 MB** | 50.497 |
+| **GraphMixer** | **69,8 s** | **2,33** | 3,724 s | 1.585 MB | 115.085 |
+
+- GraphMixer **trainiert am schnellsten**, der Hybrid **inferiert 9× schneller**.
+  Da Training einmalig und Inferenz Dauerbetrieb ist, bleibt der Hybrid im
+  Betrieb günstiger — die frühere Aussage „19× und pareto-dominant" gilt nicht mehr.
+- Die **CNN-Variante** ist der Effizienzgewinner: ein Viertel der GRU-Parameter,
+  schnellste Inferenz, bei statistisch gleicher Genauigkeit.
+- **Die beste LSTM-Konfiguration passt nicht in den Grafikspeicher.** 9.845 MB
+  gegenüber 8.188 MiB der Karte; sie läuft nur, weil der Treiber in den
+  Systemspeicher auslagert. `lookback=96` (MSE 0,1020) wäre der betreibbare
+  Kompromiss.
+
+---
+
+## 9. Ehrliche Grenzen (Limitations-Folie)
+
+- **Kein gelerntes Modell schlägt die Frequenz-Heuristik unter 1:99.** Der
+  wichtigste Vorbehalt — Abschnitt 5.
+- **Auf allen Paaren fällt die Precision von 0,822 auf 0,029** bei unverändertem
+  Recall. Die berichteten Zahlen beschreiben ein gestütztes Protokoll.
+- **GraphMixers Optimum ist nicht erreicht** (drei Achsen am Rand).
+- **Datensatz ist faktisch Jersey City / Hoboken**, nicht Manhattan.
+- **Count-Kopf ist nicht konditioniert:** unmaskierter Loss über alle
+  Kandidatenpaare. Sprachlich sauber: „dual-head", nicht „Hurdle" im engeren Sinne.
+- **Laufzeiten gelten für diese Hardware.** GraphMixers Python-Schleifen
+  profitieren kaum von schnellerer Hardware, die Tensor-Operationen des Hybrids schon.
+
+---
+
+## 10. Welche Komponente trägt das Signal?
+
+2 Encoder × 5 Varianten × 5 Seeds, Parameterzahl über alle Varianten identisch
+(per Zusicherung geprüft: GRU 599.298, CNN 151.682).
+
+| entfernt | GRU: Δ AP (σ) | CNN: Δ AP (σ) |
+|---|---|---|
+| **Paar-Features** | **−0,0126 (9,4)** | **−0,0281 (15,4)** |
+| Graph-Branch | −0,0024 (5,0) | −0,0033 (3,7) |
+| temporaler Branch | −0,0002 (0,6) | +0,0002 (0,3) |
+| **Graph *und* Zeitreihe** (`pair_only`) | **−0,0080 (11,2)** | **−0,0075 (5,4)** |
+
+**Die letzte Zeile ist die entscheidende.** Leave-one-out misst nur den
+*marginalen* Beitrag und kann „nutzlos" nicht von „redundant" unterscheiden:
+
+| | Δ AP (GRU) |
+|---|---|
+| Graph allein entfernen | −0,0024 |
+| Zeitreihe allein entfernen | −0,0002 |
+| Summe der Einzelbeiträge | −0,0026 |
+| **beide zusammen entfernen** | **−0,0080** |
+
+Der gemeinsame Effekt ist **dreimal so groß wie die Summe der Einzeleffekte** —
+der Fingerabdruck von Redundanz. Fällt der Zeitreihen-Zweig weg, kompensiert der
+Graph, und umgekehrt.
+
+> **Korrektur:** „Der temporale Branch trägt nichts bei" war eine
+> Fehlinterpretation. Korrekt: *Er trägt nichts bei, das der Graph nicht auch
+> liefern könnte.* Dass zeitliche Information wertvoll ist, zeigt das LSTM
+> allein (MSE 0,0954 gegenüber 0,0826).
+
+**Rechtfertigt sich der Hybrid?**
+
+| Modell | test AP |
+|---|---|
+| voller Hybrid | **0,9238** |
+| nur Paar-Features (nicht-hybrid) | 0,9158 |
+| ohne Paar-Features | 0,9112 |
+| Frequenz-Heuristik | 0,8914 |
+
+Ja — mit **+0,0080 AP (11,2 σ)** gegenüber einer nicht-hybriden Variante. Klein,
+aber hochsignifikant. Die Architektur rechtfertigt sich knapper als ursprünglich
+dargestellt.
 
 ---
 
 ## 11. Reproduzierbarkeit
 
+```bash
+python evaluation/shared_eval.py                        # Protokoll + Frequenz-Heuristik
+bash   ablation/run_hpo_final.sh                        # finale Suche (361 Läufe, ~21 h)
+python ablation/hpo_final_report.py                     # Gitter-Auswertung
+python ablation/final_eval.py                           # 4 Modelle × 5 Seeds
+python ablation/runtime_analysis.py --phase b           # Kosten, 5 Seeds interleaved
+python ablation/protocol_gap.py                         # volles Gitter vs. 1:5
+python ablation/eval_ranking.py --max_queries 3000      # 1-vs-99
+python ablation/eval_branches.py --seeds 5              # Ablation, 2 Encoder × 5 Varianten
+python ablation/demo_score_day.py --day 27              # Demo-Daten
+python ablation/demo_animate.py --day 27                # Demo-Animation
 ```
-python evaluation/shared_eval.py                       # Protokoll + Frequenz-Heuristik
-python ablation/run_all_grids.sh                       # HPO (81 Configs)
-python ablation/eval_seeds.py   --models all --seeds 5 # Multi-Seed (35 Läufe)
-python ablation/eval_factors.py --models all --seeds 5 # Zwei-Faktor (60 Läufe)
-python ablation/eval_ranking.py --max_queries 3000     # 1-vs-99-Ranking
-python ablation/eval_branches.py                       # Branch-Ablationen (12 Läufe)
-```
+
+Alle Skripte lesen ihre Modellkonfiguration über `final_eval.best_cfg()` aus
+`hpo_final_*.csv`. Die Suche selbst hängt jede fertige Konfiguration sofort an
+die CSV an und überspringt sie beim Neustart; `run_hpo_final.sh` startet den
+Prozess nach einem CUDA-Fault neu.
 
 Rohdaten: `ablation/results/*.csv` · Zusammenfassungen: `ablation/results/*_comparison.md`
