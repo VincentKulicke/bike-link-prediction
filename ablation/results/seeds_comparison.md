@@ -1,3 +1,18 @@
+> ## SUPERSEDED (2026-09-05)
+>
+> These numbers predate two baseline fixes and the final grid search.
+> **Use `final_eval_summary.csv` instead** (4 models x 5 seeds, winning configs).
+>
+> | here | current |
+> |---|---|
+> | GraphMixer AP 0.7012 +- 0.0375 | **0.9019 +- 0.0014** |
+> | LSTM MSE 0.1164 +- 0.0008 | **0.0954 +- 0.0013** |
+> | Hybrid GRU AP 0.9233 | **0.9238 +- 0.0004** |
+>
+> The GraphMixer seed noise here (0.0375) came from the broken training
+> distribution; every claim derived from it -- notably "the hybrid is 33-54x
+> more reproducible" -- no longer holds. Kept for process documentation.
+
 # Multi-seed robustness check
 
 Every other result in this study came from a single run, so no difference had an

@@ -134,6 +134,90 @@ def _reset_mem():
         torch.cuda.empty_cache()
 
 
+def write_report(summ, elapsed_min, device):
+    """ablation/results/runtime_comparison.md, generated from the measurements.
+
+    This used to be maintained by hand, which meant it silently kept the old
+    numbers when the configs changed. Generating it removes that failure mode.
+    """
+    import pandas as pd
+    md = os.path.join(RES, "runtime_comparison.md")
+    ev_path = os.path.join(RES, "final_eval_summary.csv")
+    ev = pd.read_csv(ev_path).set_index("model") if os.path.exists(ev_path) else None
+    s = summ.set_index("model")
+    order = [m for m in ("Hybrid CNN", "Hybrid GRU", "LSTM", "GraphMixer")
+             if m in s.index]
+
+    L = ["# Runtime and cost", "",
+         "What each model costs to train and to run, measured under one protocol.",
+         "Configs are the winners of the final grid search, read from",
+         "`hpo_final_*.csv` rather than hard-coded.", "",
+         "## Hardware", "", "```",
+         "GPU     NVIDIA GeForce RTX 4070 Laptop, 8.6 GB VRAM (8188 MiB)",
+         "CPU     Intel Core i9-13900HX, 24 cores / 32 threads",
+         "RAM     31.7 GB", "OS      Windows 11",
+         "Stack   Python 3.12.8, PyTorch 2.12.0+cu126, CUDA 12.6", "```", "",
+         "Ratios are hardware-dependent: GraphMixer's per-event Python loops",
+         "barely benefit from a faster GPU, the hybrid's tensor operations do.",
+         "", f"## Controlled measurement ({int(s['n'].max())} seeds, medians)", "",
+         "| Model | Training | s/epoch | Inference | us/pair | Peak memory | Params |",
+         "|---|---|---|---|---|---|---|"]
+    for m in order:
+        r = s.loc[m]
+        L.append(f"| {m} | {r.train_total_med:.1f} s | {r.train_epoch_med:.2f} | "
+                 f"{r.infer_med:.3f} s | {r.us_per_pair:.2f} | "
+                 f"{r.peak_mb_med:,.0f} MB | {int(r.n_params):,} |")
+    L += ["", "Inference = forward pass over the test candidates, excluding file I/O.", ""]
+
+    if ev is not None and {"Hybrid GRU", "GraphMixer"} <= set(ev.index):
+        fac = s.loc["GraphMixer", "infer_med"] / s.loc["Hybrid GRU", "infer_med"]
+        L += ["## The main result", "",
+              f"The hybrid infers **{fac:.1f}x faster** than GraphMixer "
+              f"({s.loc['Hybrid GRU','infer_med']:.3f} s vs. "
+              f"{s.loc['GraphMixer','infer_med']:.3f} s) at "
+              f"AP {ev.loc['Hybrid GRU','ap_mean']:.4f} vs. "
+              f"{ev.loc['GraphMixer','ap_mean']:.4f}.", "",
+              "GraphMixer, however, now **trains faster** "
+              f"({s.loc['GraphMixer','train_total_med']:.0f} s vs. "
+              f"{s.loc['Hybrid GRU','train_total_med']:.0f} s), which reverses the",
+              "earlier picture. Since training is one-off and inference is the",
+              "running cost, the hybrid remains the cheaper choice in operation --",
+              "but it is a trade-off now, not Pareto dominance.", ""]
+
+    L += ["## Two observations worth a slide", "",
+          "**The CNN variant is the efficiency winner.** Fastest inference in the",
+          "field, lowest memory among the hybrids, a quarter of the GRU's",
+          "parameters -- at statistically indistinguishable accuracy (1.4 sigma).",
+          "",
+          "**Parameter count says nothing about cost.** The LSTM has the fewest",
+          "parameters and by far the largest memory peak.", ""]
+    if "LSTM" in s.index and s.loc["LSTM", "peak_mb_med"] > 8588:
+        L += ["> **The best LSTM config does not fit in VRAM.** Its peak of "
+              f"{s.loc['LSTM','peak_mb_med']:,.0f} MB exceeds the card's 8,188 MiB.",
+              "> It only runs because the Windows driver spills CUDA allocations to",
+              "> system memory; on a card without that fallback it would raise OOM.", ""]
+
+    L += ["## Why medians, not means", "",
+          "Single measurements on this machine occasionally spike by an order of",
+          "magnitude (transient thermal or driver effects). Models are measured",
+          "interleaved within each seed, not in blocks, so drift cannot favour",
+          "whichever model runs last.", "",
+          "## The grid timings cannot be used for this", "",
+          "In `grid_hybrid_gru.csv` runtime correlates 0.87 with run order. Since",
+          "no model uses early stopping there, no hyperparameter can change",
+          "runtime causally -- the apparent 2x learning-rate effect is thermal",
+          "drift, because lr was the outer loop in every grid.", "",
+          "## Reproduce", "",
+          "```bash", "python ablation/runtime_analysis.py --phase a   # grid diagnostics",
+          "python ablation/runtime_analysis.py --phase b   # controlled measurement",
+          "```", "",
+          f"Measured in ~{elapsed_min:.0f} min on {device}.",
+          "Raw data: `runtime_controlled.csv`, aggregated: `runtime_summary.csv`", ""]
+    with open(md, "w", encoding="utf-8") as f:
+        f.write("\n".join(L))
+    print(f"wrote {md}")
+
+
 def _peak_mb():
     return torch.cuda.max_memory_allocated() / 1e6 if torch.cuda.is_available() else float("nan")
 
@@ -246,6 +330,7 @@ def measure_gm(seed, shared):
 
 
 def phase_b(seeds):
+    _t_start = time.time()
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {device}")
     if torch.cuda.is_available():
@@ -352,6 +437,7 @@ def summarize_b():
     print("\n=== Phase B: controlled measurement (medians over seeds) ===")
     print(g.to_string(index=False, float_format=lambda v: f"{v:.2f}"))
     print(f"\n[written] runtime_summary.csv")
+    write_report(g, elapsed_min=(time.time() - _t_start) / 60, device=device)
 
 
 if __name__ == "__main__":

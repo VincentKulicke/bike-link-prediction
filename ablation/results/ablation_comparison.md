@@ -1,3 +1,14 @@
+> ## SUPERSEDED (2026-09-05)
+>
+> Single runs (seed 42) from the 81-config search, before two baseline fixes.
+> **Use `hpo_final_comparison.md`** (361 configs, early stopping) and
+> `final_eval_summary.csv` (5 seeds) instead.
+>
+> What changed: GraphMixer AP 0.701 -> **0.9019**, LSTM MSE 0.116 -> **0.0954**,
+> and "HPO does not move the hybrid" is now known to be the wrong question --
+> best vs. worst config differ by **33 sigma**; the default merely happened to
+> sit near the optimum. Kept for process documentation.
+
 # Ablation study – grid-search hyperparameter optimization
 
 Every model was tuned with the **same search-depth philosophy** via grid search. Hyperparameters were selected **from the validation metric only**; the test split was computed **once** per model (final config). All runs use the same `shared_eval` protocol and seed 42.

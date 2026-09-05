@@ -1,3 +1,16 @@
+> ## SUPERSEDED (2026-09-05)
+>
+> The sigma values here come from the broken GraphMixer training
+> (sigma_Seed 0.0700 against 0.0014 today), so every derived ratio is void --
+> including "GraphMixer's grid ranking is barely reliable (1.3x)" and
+> "233x smaller seed noise".
+>
+> **Use `hpo_final_comparison.md`** (361 configs) and section 7 of
+> `docs/ERGEBNISSE.md` instead.
+>
+> The *methodological* point stands: grid spreads measured on single seeds
+> contain seed noise and overstate the tuning effect. Kept for that reason.
+
 # Grid-search effect vs. seed effect — measured separately
 
 The grid search used one seed per configuration, so each config's score also
