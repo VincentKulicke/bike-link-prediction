@@ -80,7 +80,7 @@ def write_markdown(raw, summ, cfgs):
         return diff, abs(diff) / pooled
 
     L = ["# Model comparison", "",
-         "Mean ± std over 5 seeds (42–46) of each model's grid winner. "
+         "Mean +/- std over 5 seeds (42-46) of each model's grid winner. "
          "Configurations are read from `hpo_final_*.csv`, so they cannot drift "
          "from the search that produced them. Selection on validation, "
          "everything below is test.", "",
@@ -132,7 +132,7 @@ def main():
         "LSTM":        best_cfg("lstm", "val_mse", False),
         "GraphMixer":  best_cfg("graphmixer", "val_ap", True),
     }
-    print("Gewinner-Konfigurationen aus der Gittersuche:")
+    print("winning configurations from the grid search:")
     for k, v in cfgs.items():
         print(f"  {k:<12} {v}")
     print()
@@ -242,7 +242,7 @@ def main():
     if missing:
         # exit non-zero so the supervisor restarts with a fresh CUDA context;
         # a poisoned context makes every later run in this process fail too
-        print(f"\n{len(missing)} Laeufe fehlen noch: {missing[:6]}"
+        print(f"\n{len(missing)} runs still missing: {missing[:6]}"
               f"{' ...' if len(missing) > 6 else ''}")
         sys.exit(1)
 

@@ -152,7 +152,7 @@ def run_hybrid_grid(encoder):
 
     todo = [c for c in combos(spec)
             if tuple(_k(c[k]) for k in keys) not in done]
-    print(f"[{name}] {len(todo)} offen von {sum(1 for _ in combos(spec))}")
+    print(f"[{name}] {len(todo)} open of {sum(1 for _ in combos(spec))}")
 
     for n, c in enumerate(todo, 1):
         lb = c["ts_lookback"]
@@ -198,7 +198,7 @@ def run_lstm_grid():
 
     todo = [c for c in combos(spec)
             if tuple(_k(c[k]) for k in keys) not in done]
-    print(f"[lstm] {len(todo)} offen von {sum(1 for _ in combos(spec))}")
+    print(f"[lstm] {len(todo)} open of {sum(1 for _ in combos(spec))}")
 
     for n, c in enumerate(todo, 1):
         layers, drop = c["layers_dropout"]
@@ -243,7 +243,7 @@ def run_gm_grid():
 
     todo = [c for c in combos(spec)
             if tuple(_k(c[k]) for k in keys) not in done]
-    print(f"[graphmixer] {len(todo)} offen von {sum(1 for _ in combos(spec))}")
+    print(f"[graphmixer] {len(todo)} open of {sum(1 for _ in combos(spec))}")
 
     for n, c in enumerate(todo, 1):
         cfg = GMConfig(lr=c["lr"], hidden_dim=c["hidden_dim"],

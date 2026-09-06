@@ -1,20 +1,22 @@
 # -*- coding: utf-8 -*-
 """
-Training & Vorhersage-Export für die GraphMixer-Baseline.
-=========================================================
+Training and prediction export for the GraphMixer baseline.
 
-Bindet Modell (graphmixer.py) und Daten (graphmixer_data.py) zusammen,
-trainiert mit Negative Sampling auf den Trainingskanten und exportiert
-Vorhersagen für die GEMEINSAME Kandidatenmenge des Eval-Moduls.
+Ties the model (graphmixer.py) to the data (graphmixer_data.py), trains on the
+training candidates and exports predictions for the shared candidate set.
 
-Ablauf:
-  1. Daten + Modell + Optimizer aufsetzen
-  2. Trainings-Schleife (binäre Cross-Entropy, 1 Negative je Positive)
-  3. Vorhersagen für die shared_eval-Kandidaten (val/test) erzeugen
-  4. Export als CSV (u, i, bin_idx, score) – KANONISCH 0-indiziert
-  5. direkte Bewertung über shared_eval.SharedLinkEval.score_binary
+Steps:
+  1. set up data, model, optimizer
+  2. training loop (binary cross-entropy)
+  3. predict on the shared_eval candidates for val and test
+  4. export as CSV (u, i, bin_idx, score), canonical 0-indexing
+  5. score via shared_eval.SharedLinkEval.score_binary
 
-Aufruf:  python train_graphmixer.py
+Training draws from ev.build_candidates("train"), not one negative per positive.
+The earlier 1:1 sampling left the model calibrated for a 50 % prior while the
+evaluation runs at 1:5, which cost about 0.22 F1.
+
+Usage:  python train_graphmixer.py
 """
 
 from __future__ import annotations
@@ -24,23 +26,21 @@ import pandas as pd
 import torch
 import torch.nn as nn
 
-# eigene Module
+# local modules
 from graphmixer import GraphMixer, GMConfig
 from graphmixer_data import GraphMixerData
 
-# gemeinsames Eval-Modul (liegt unter ../../evaluation)
+# shared evaluation module, ../../evaluation
 _EVAL_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "evaluation")
 sys.path.insert(0, _EVAL_DIR)
 from shared_eval import SharedLinkEval, EvalConfig   # noqa: E402
 
 
-# ===========================================================================
-# Hilfsfunktion: numpy-Batch -> Modell-"Pack" (tokens, own_feat, neigh_mean)
-# ===========================================================================
+# --- numpy batch -> model pack (tokens, own_feat, neigh_mean) ---------------
 def make_pack(model: GraphMixer, ef, dt, msk, own, neigh_mean, device):
-    """Baut aus den gesammelten Rohdaten die Eingabe-Tensoren.
+    """Builds the input tensors from the collected raw arrays.
 
-    tokens = [Kanten-Feature || feste Zeit-Kodierung(Δt)], Padding-Zeilen = 0.
+    tokens = [edge feature || fixed time encoding(dt)], padding rows zeroed.
     """
     ef = torch.as_tensor(ef, dtype=torch.float32, device=device)        # (B,K,d_edge)
     dt = torch.as_tensor(dt, dtype=torch.float32, device=device)        # (B,K)
@@ -50,26 +50,19 @@ def make_pack(model: GraphMixer, ef, dt, msk, own, neigh_mean, device):
 
     time_feat = model.time_enc(dt)                                      # (B,K,time_dim)
     tokens = torch.cat([ef, time_feat], dim=-1)                         # (B,K,d_edge+time_dim)
-    tokens = tokens * msk.unsqueeze(-1)                                 # Padding-Zeilen nullen
+    tokens = tokens * msk.unsqueeze(-1)                                 # zero the padding rows
     return tokens, own, neigh_mean
 
 
-# ===========================================================================
-# 1) TRAINING
-# ===========================================================================
+# --- training ----------------------------------------------------------------
 def train(cfg: GMConfig, data: GraphMixerData, model: GraphMixer, device,
           ev: SharedLinkEval | None = None, patience: int = 0,
           verbose: bool = True) -> GraphMixer:
     """Train GraphMixer on the same candidate distribution it is scored on.
 
-    The previous version drew one negative per positive *edge event*, i.e. a
-    50 % positive rate, while shared_eval scores a 1:5 mix (16.7 %). That left
-    the model ~2.5x over-confident (mean score 0.409 against a true rate of
-    0.166) and cost 0.219 F1 at threshold 0.5 -- almost half of its apparent
-    gap to the hybrid was calibration, not modelling. It also queried at event
-    timestamps while evaluation queries at bin starts.
-
-    Now both come from ev.build_candidates(), exactly like the hybrid.
+    Earlier versions sampled one negative per positive edge event (50 % positive)
+    while shared_eval scores a 1:5 mix (16.7 %), and queried at event timestamps
+    instead of bin starts. Both are fixed by drawing from ev.build_candidates().
 
     patience > 0 enables early stopping on validation AP.
     """
@@ -87,7 +80,7 @@ def train(cfg: GMConfig, data: GraphMixerData, model: GraphMixer, device,
     t_all = cand["bin_idx"].to_numpy() * cfg.bin_seconds
     y_all = cand["label"].to_numpy(np.float32)
     if verbose:
-        print(f"Trainingspaare: {len(u_all):,} | positiv {100*y_all.mean():.1f}%")
+        print(f"training pairs: {len(u_all):,} | positive {100*y_all.mean():.1f}%")
 
     best, best_state, bad, bs = -1.0, None, 0, cfg.batch_size
     for ep in range(1, cfg.epochs + 1):
@@ -108,7 +101,7 @@ def train(cfg: GMConfig, data: GraphMixerData, model: GraphMixer, device,
             opt.step()
             total += loss.item(); nb += 1
 
-        msg = f"Epoche {ep:2d}/{cfg.epochs} | Loss {total/max(1,nb):.4f}"
+        msg = f"epoch {ep:2d}/{cfg.epochs} | loss {total/max(1,nb):.4f}"
         if patience > 0:
             ap = _val_ap(cfg, data, model, ev, device)
             msg += f" | val AP {ap:.4f}"
@@ -147,16 +140,14 @@ def _val_ap(cfg: GMConfig, data: GraphMixerData, model: GraphMixer,
     return float(average_precision_score(cand["label"].to_numpy(), out))
 
 
-# ===========================================================================
-# 2) VORHERSAGE-EXPORT für die shared_eval-Kandidaten
-# ===========================================================================
+# --- prediction export for the shared_eval candidates -----------------------
 @torch.no_grad()
 def export_predictions(cfg: GMConfig, data: GraphMixerData, model: GraphMixer,
                        ev: SharedLinkEval, split: str, device, out_csv: str) -> pd.DataFrame:
-    """Berechnet für jede Kandidaten-Zelle (u, i, bin_idx) einen Link-Score.
+    """Scores every candidate cell (u, i, bin_idx).
 
-    Abfragezeit = Beginn des Bins (bin_idx * bin_seconds).
-    Knoten-IDs der Kandidaten sind KANONISCH (0..231); intern +1 (1-indiziert).
+    Query time is the start of the bin (bin_idx * bin_seconds). Candidate node
+    IDs are canonical (0..231); internally shifted by +1.
     """
     model.eval()
     cand = ev.build_candidates(split)[["u", "i", "bin_idx"]].copy()
@@ -168,7 +159,7 @@ def export_predictions(cfg: GMConfig, data: GraphMixerData, model: GraphMixer,
     bs = 4096
     for s in range(0, len(cand), bs):
         sl = slice(s, s + bs)
-        u_node = u_can[sl] + 1            # kanonisch -> 1-indiziert
+        u_node = u_can[sl] + 1            # canonical -> 1-indexed
         i_node = i_can[sl] + 1
         tq = t_query[sl]
         u_pack = make_pack(model, *data.get_batch(u_node, tq, cfg.num_neighbors), device)
@@ -177,14 +168,12 @@ def export_predictions(cfg: GMConfig, data: GraphMixerData, model: GraphMixer,
         scores[sl] = torch.sigmoid(logit).cpu().numpy()
 
     pred = cand.copy()
-    pred["score"] = scores            # u, i bleiben kanonisch 0-indiziert (für shared_eval)
+    pred["score"] = scores            # u, i stay 0-indexed for shared_eval
     pred.to_csv(out_csv, index=False)
     return pred
 
 
-# ===========================================================================
-# 3) MAIN
-# ===========================================================================
+# --- main --------------------------------------------------------------------
 def main(cfg: GMConfig | None = None):
     cfg = cfg or GMConfig()
     torch.manual_seed(cfg.seed); np.random.seed(cfg.seed)
@@ -192,16 +181,16 @@ def main(cfg: GMConfig | None = None):
     print(f"Device: {device}")
 
     data = GraphMixerData(cfg.prep_dir)
-    print(f"Knoten: {data.num_nodes} | Kanten: {len(data.edges):,} | "
+    print(f"nodes: {data.num_nodes} | edges: {len(data.edges):,} | "
           f"d_edge={data.d_edge} d_node={data.d_node}")
 
     model = GraphMixer(cfg, edge_feat_dim=data.d_edge, node_feat_dim=data.d_node).to(device)
     n_param = sum(p.numel() for p in model.parameters())
-    print(f"Modellparameter: {n_param:,}")
+    print(f"model parameters: {n_param:,}")
 
     model = train(cfg, data, model, device)
 
-    # gemeinsames Eval-Protokoll (identische Bins/Split/Kandidaten wie das Hauptmodell)
+    # shared protocol: same bins, split and candidates as the main model
     ev = SharedLinkEval(EvalConfig(bin_minutes=cfg.bin_minutes,
                                    train_days=cfg.train_days, val_days=cfg.val_days))
     out_dir = os.path.join(os.path.dirname(__file__), "predictions")

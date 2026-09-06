@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-hybrid_core.py — reusable hybrid model for the ablation study.
-==============================================================
+hybrid_core.py: reusable hybrid model for the ablation study.
 
 Pulls the logic out of  hybrid_model/iteration2_graphsage_gru_hurdle.ipynb
 into a module we can drive with a grid search. The time-series encoder is
@@ -18,7 +17,7 @@ Branch ablations (use_graph / use_temporal / use_pair):
   Components are disabled by zeroing their contribution in HybridHurdle.forward,
   NOT by shrinking input dimensions or removing layers. Parameter count stays
   identical across variants, so a performance drop cannot be attributed to
-  reduced model capacity — only to the missing signal.
+  reduced model capacity, only to the missing signal.
 
 Selection protocol (important):
   - Hyperparameters are picked from VALIDATION metrics only.
@@ -43,9 +42,7 @@ sys.path.insert(0, _EVAL)
 from shared_eval import SharedLinkEval, EvalConfig   # noqa: E402
 
 
-# ===========================================================================
-# 1) CONFIG  (tuned: lr, hidden, lambda_count, kernel_size)
-# ===========================================================================
+# --- config (tuned: lr, hidden, lambda_count, kernel_size) ------------------
 @dataclass
 class HybridCfg:
     encoder: str = "gru"          # "gru" | "cnn"
@@ -81,9 +78,7 @@ class HybridCfg:
         return base
 
 
-# ===========================================================================
-# 2) LOAD DATA once  (shared across all grid runs)
-# ===========================================================================
+# --- load data once, shared across all grid runs ----------------------------
 class HybridData:
     """Loads and normalizes every input exactly once, then gets handed to each
     run_hybrid() call so the grid doesn't reload the data 40 times."""
@@ -180,9 +175,7 @@ class HybridData:
         return out
 
 
-# ===========================================================================
-# 3) GRAPH BRANCH (GraphSAGE) — same as in the notebook
-# ===========================================================================
+# --- graph branch (GraphSAGE), same as in the notebook ----------------------
 class SAGELayer(nn.Module):
     def __init__(self, d_in, d_out):
         super().__init__()
@@ -205,10 +198,8 @@ class GraphSAGE(nn.Module):
         return self.act(self.l2(h, A_norm))
 
 
-# ===========================================================================
-# 4) TIME-SERIES ENCODER — swappable (GRU vs. 1D-CNN)
-#    Both map (B, L, C) -> (B, hidden)
-# ===========================================================================
+# --- time-series encoder, swappable GRU or 1D-CNN --------------------------
+# Both map (B, L, C) -> (B, hidden).
 class GRUEncoder(nn.Module):
     def __init__(self, n_channels, hidden):
         super().__init__()
@@ -245,15 +236,13 @@ def build_encoder(cfg: HybridCfg, n_channels: int) -> nn.Module:
     raise ValueError(f"Unknown encoder: {cfg.encoder!r}")
 
 
-# ===========================================================================
-# 5) HYBRID MODEL (GraphSAGE + encoder + fusion + hurdle heads)
-# ===========================================================================
+# --- hybrid model (GraphSAGE + encoder + fusion + hurdle heads) -------------
 class HybridHurdle(nn.Module):
     """GraphSAGE + temporal encoder + pair features + dual heads.
 
     Ablation flags (cfg.use_graph / use_temporal / use_pair) zero the matching
     tensor before fusion. Layers and input sizes are never removed, so every
-    variant has the same parameter count — only the signal changes.
+    variant has the same parameter count; only the signal changes.
     """
     def __init__(self, cfg: HybridCfg, n_static, n_channels, n_pair):
         super().__init__()
@@ -290,9 +279,7 @@ class HybridHurdle(nn.Module):
         return logit, count
 
 
-# ===========================================================================
-# 6) TRAIN + PREDICT + SCORE
-# ===========================================================================
+# --- train, predict, score --------------------------------------------------
 def _predict(model, data: HybridData, cfg: HybridCfg, split: str) -> pd.DataFrame:
     model.eval()
     cand = data.cand[split]; t = data.tensors[split]

@@ -307,7 +307,7 @@ def _frequency_baseline(ev: SharedLinkEval, split: str,
 
     `cand` defaults to the 1:5 shared_eval candidates for `split`. Pass a
     custom candidate frame (e.g. the 1-vs-99 ranking set) to score those rows
-    with the same heuristic — no training involved.
+    with the same heuristic, no training involved.
     """
     tg = ev.build_targets()
     train = tg[tg["split"] == "train"]

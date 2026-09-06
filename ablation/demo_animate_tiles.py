@@ -1,12 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-Animated flow map over one day, on a real street basemap.
+Animated flow map over one day, on a street basemap.
 
-Map-tile variant of demo_animate.py, which stays untouched. Same scored CSV,
-same 48 frames -- the difference is that the flows sit on actual streets.
-
-The basemap is fetched once and reused for every frame; without that the run
-would issue ~2,000 tile requests instead of ~50.
+Tile variant of demo_animate.py. Same scored CSV, same 48 frames. The basemap
+is fetched once and reused, otherwise this would issue ~2,000 tile requests
+instead of ~50.
 
     python ablation/demo_animate_tiles.py --day 27 --provider osm
 """

@@ -25,7 +25,7 @@ for (( i=1; i<=MAX_RESTARTS; i++ )); do
     echo "=== sauber beendet nach $i Versuch(en) ===" >> "$LOG"
     exit 0
   fi
-  echo "=== Abbruch mit Code $rc, Neustart in 20 s ===" >> "$LOG"
+  echo "=== exited with code $rc, restarting in 20 s ===" >> "$LOG"
   sleep 20          # let the driver settle before touching the GPU again
 done
 

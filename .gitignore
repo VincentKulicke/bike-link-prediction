@@ -38,3 +38,6 @@ nyc-bike-sharing/
 .DS_Store
 Thumbs.db
 .vscode/
+
+# Interne Dokumentation liegt ausserhalb des Repos
+docs/

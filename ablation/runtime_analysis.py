@@ -41,9 +41,7 @@ RAW_B = os.path.join(RES, "runtime_controlled.csv")
 
 
 
-# ===========================================================================
-# Phase B - controlled measurement
-# ===========================================================================
+# --- Phase B - controlled measurement ----------------------------------------
 def _sync():
     if torch.cuda.is_available():
         torch.cuda.synchronize()
@@ -282,7 +280,7 @@ def phase_b(seeds):
         f"GRU and CNN won at different lookbacks ({_lb} vs {_lb_cnn}); "
         "the shared HybridData below would need splitting per encoder.")
     hyb_data = HybridData(device=device, lookback=_lb)
-    print(f"HybridData lookback={_lb} (aus der Gittersuche)")
+    print(f"HybridData lookback={_lb} (from the grid search)")
 
     from shared_eval import SharedLinkEval
     from lstm_count import CountSeries
@@ -370,10 +368,9 @@ def summarize_b():
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    # Phase A ("was verraten die vorhandenen Grid-Laeufe?") ist entfallen: sie
-    # las die Juli-Gitter aus, deren Metriken vor den beiden Baseline-Fixes
-    # entstanden. Die Laufzeitaussage stuetzt sich jetzt allein auf die
-    # kontrollierte Messung.
+    # Phase A, which reused the timings from the earlier grid searches, was
+    # dropped: those runs predate the two baseline fixes. Everything is based
+    # on the controlled measurement now.
     ap.add_argument("--phase", default="b", choices=["b", "summary"])
     ap.add_argument("--seeds", type=int, default=5)
     a = ap.parse_args()

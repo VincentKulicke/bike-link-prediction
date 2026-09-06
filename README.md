@@ -82,15 +82,20 @@ model folder.
 python compare_models.py     # collects all predictions/*.csv -> results/comparison.md
 ```
 
-## Ablation study (grid-search HPO)
+## Hyperparameter search and ablations
 
-`ablation/` tunes every model with the same search depth (grid search, selection
-on validation only) and adds a GraphSAGE + 1D-CNN encoder ablation. See
-`ablation/results/ablation_comparison.md`.
+`ablation/` tunes every model with its own grid, selection on validation only,
+and then compares the winners over 5 seeds. It also contains the encoder
+ablation (GRU vs 1D-CNN) and the branch ablation (graph / temporal / pair).
 
 ```bash
-cd ablation && bash run_all_grids.sh     # runs all four grids, then:
-python make_ablation_comparison.py       # writes ablation_comparison.md
+cd ablation
+bash run_hpo_final.sh          # all four grids, restarts on transient CUDA faults
+python hpo_final_report.py     # -> results/hpo_final_comparison.md
+python final_eval.py           # winners x 5 seeds -> results/final_eval_summary.csv
+python eval_branches.py        # -> results/branches_comparison.md
+python eval_ranking.py         # 1-vs-99 protocol -> results/ranking_comparison.md
+python runtime_analysis.py --phase b    # -> results/runtime_comparison.md
 ```
 
 ## Evaluation (identical for every model)

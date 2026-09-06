@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-eval_ranking.py — the harder 1-vs-99 ranking protocol.
+eval_ranking.py: the harder 1-vs-99 ranking protocol.
 =======================================================
 
 The default shared_eval uses a 1:5 negative ratio, which is relatively easy and
@@ -13,7 +13,7 @@ It answers one question directly: under the harder metric, does the HPO-tuned
 hybrid beat the default hybrid?
 
 Models scored on the SAME seeded ranking set:
-  - Frequency heuristic (train rate per pair — no training)
+  - Frequency heuristic (train rate per pair, no training)
   - Hybrid GraphSAGE+GRU (default:  h64,  lambda 1.0)
   - Hybrid GraphSAGE+GRU (HPO best: h128, lambda 0.5)
   - GraphMixer (default) and GraphMixer (HPO best: lr 1e-4, h64, 1 layer)
@@ -108,11 +108,9 @@ def evaluate(name, tuning, score_fn, cand_by_split):
     return rows
 
 
-# ===========================================================================
-# Analysis: paired RR test + stratification by pair history
-# ===========================================================================
+# --- Analysis: paired RR test + stratification by pair history ---------------
 def _train_trip_counts(ev: SharedLinkEval) -> pd.Series:
-    """Sum of train-split trips per (u, i) — the pair-history used for strata."""
+    """Sum of train-split trips per (u, i), the pair history used for strata."""
     tg = ev.build_targets()
     train = tg[tg["split"] == "train"]
     return train.groupby(["u", "i"])["count"].sum()
@@ -159,7 +157,7 @@ def run_analysis(ev: SharedLinkEval, cand: pd.DataFrame, pq: dict[str, pd.DataFr
                  split: str = "test") -> tuple[pd.DataFrame, list[dict], list[str]]:
     """Build stratified table + paired tests from per-query rank frames in `pq`.
 
-    pq keys: 'Frequency', 'Hybrid', 'GraphMixer' — each a per_query_ranks frame.
+    pq keys: 'Frequency', 'Hybrid', 'GraphMixer'; each a per_query_ranks frame.
     """
     trips = _train_trip_counts(ev)
     base = pq["Hybrid"][["query_id", "u", "i"]].copy()
@@ -172,8 +170,8 @@ def run_analysis(ev: SharedLinkEval, cand: pd.DataFrame, pq: dict[str, pd.DataFr
     active = list(STRATA)
     if counts.get("0", 0) < 100:
         merged_note = ("Stratum 0 has only "
-                       f"{int(counts.get('0', 0))} queries — merged with 1–5 "
-                       "into 0–5.")
+                       f"{int(counts.get('0', 0))} queries, merged with 1-5 "
+                       "into 0-5.")
         active = [("0-5", 0, 5), ("6-20", 6, 20), ("21-100", 21, 100),
                   (">100", 101, None)]
         base["stratum"] = base["train_trips"].map(

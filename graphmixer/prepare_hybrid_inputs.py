@@ -74,7 +74,7 @@ def main():
                 node_avail[idx, :, c] = sample(ts.get(key, []))
     print(f"Nodes found/expected: {found}/{N} | bins: {n_bins}")
 
-    # adjacency from the training period (canonical) – weight = super-edge num_rides
+    # adjacency from the training period (canonical), weight = super-edge num_rides
     se = pd.read_csv(os.path.join(PREP, "superedge_counts.csv"))
     train_end_bin = TRAIN_DAYS * ((24 * 60) // (BIN_SECONDS // 60))
     tr = se[se["bin_idx"] < train_end_bin]

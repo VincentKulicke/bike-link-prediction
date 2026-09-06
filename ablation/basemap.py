@@ -1,19 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-Minimal slippy-map tile fetcher: bounding box -> stitched basemap image.
+Slippy-map tile fetcher: bounding box -> stitched basemap image.
 
-Written by hand rather than pulling in contextily, which would drag along
-geopandas, pyproj and rasterio. Everything here needs only requests + PIL.
+Only needs requests + PIL; contextily would pull in geopandas, pyproj and
+rasterio for this.
 
-Two caches, because the animation renders 48 frames on the same background:
-  - individual tiles under results/_tiles/
-  - the stitched image under results/_tiles/stitched_*.png
-So the first render fetches ~25 tiles and every later one reads one PNG. That
-also means the scripts still work on a machine with no internet.
+Cached twice (single tiles and the stitched image) because the animation draws
+48 frames on the same background. Also means it works offline after the first
+run.
 
-Coordinates: tiles are Web Mercator (EPSG:3857). The demo's own projection is
-a local flat approximation, which would drift against the streets, so anything
-drawn on top of these tiles has to go through lonlat_to_mercator() here.
+Tiles are Web Mercator (EPSG:3857), so overlays must go through
+lonlat_to_mercator().
 """
 import io
 import math
@@ -29,9 +26,8 @@ CACHE = os.path.join(_HERE, "results", "_tiles")
 R = 6378137.0                      # WGS84 semi-major axis
 WORLD = 2 * math.pi * R            # 40075016.7 m
 
-# CARTO's basemaps.cartocdn.com now serves an "API KEY REQUIRED" watermark
-# instead of map data -- the request still returns HTTP 200, so this only shows
-# up when you look at the image. Both providers below were verified visually.
+# CARTO serves an "API KEY REQUIRED" watermark with HTTP 200, so a status-code
+# check does not catch it. The providers below were checked visually.
 PROVIDERS = {
     # light grey, minimal -- stays out of the way under many overlapping lines
     "gray": ("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/"

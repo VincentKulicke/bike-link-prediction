@@ -1,16 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-Three-panel flow map on a real street basemap.
+Three-panel flow map on a street basemap.
 
-Map-tile variant of demo_map.py. Same data, same logic -- the difference is
-that stations sit on actual streets instead of on white. demo_map.py is left
-untouched; both read the same scored CSV, so this costs no extra compute.
+Tile variant of demo_map.py, which stays as it is. Both read the same scored
+CSV, so this costs no extra compute. Separate file because demo_map.py uses a
+local flat projection (lon x cos(lat)) that would drift against the tiles;
+everything here is Web Mercator.
 
-Why a separate file: the plain version uses a local flat projection
-(lon x cos(lat)), which would drift against the tiles. Everything here goes
-through Web Mercator.
-
-    python ablation/demo_map_tiles.py --bin 1332 --provider positron
+    python ablation/demo_map_tiles.py --bin 1332 --provider osm
 """
 import os
 import argparse
@@ -34,10 +31,8 @@ RES = os.path.join(HERE, "results")
 NAVY, TEAL, TERRA, MUTED = "#13334C", "#00707F", "#B02A1F", "#64748B"
 MINT, AMBER, BG = "#00A88A", "#E08A00", "#F1F5F9"
 BORDER = "#CBD5E1"
-# True positives used to be drawn in MUTED grey at 35 % opacity so the errors
-# would stand out. That works on white, but on a street basemap the grey is
-# indistinguishable from the map itself -- the correct predictions simply
-# disappeared. They get their own blue now.
+# Grey at 35 % opacity is invisible on a street basemap, so true positives get
+# their own colour here (it works fine on white in demo_map.py).
 HIT_BLUE = "#1B6CA8"
 
 T0 = dt.date(2024, 5, 16)
@@ -129,9 +124,8 @@ def main():
                    % (n_tp, K, n_tp / K, K - n_tp, K - n_tp),
                 foot="Jede Linie = ein Stationspaar · Dicke ∝ Fahrtenzahl · "
                      "Jersey City / Hoboken, ca. %.1f × %.1f km · %s",
-                # Standardbegriffe der Klassifikation statt "getroffen /
-                # verpasst / Fehlalarm" -- letzteres stammt aus der
-                # Signalverarbeitung und mischt das Register.
+                # standard classification terms rather than "hit / missed /
+                # false alarm"
                 hit="richtig positiv", miss="falsch negativ", fp="falsch positiv"),
         en=dict(sup="Reality and prediction for the same 30-minute window",
                 t1="Reality", t2="Prediction (top %d)" % K, t3="Comparison",

@@ -1,22 +1,25 @@
 # -*- coding: utf-8 -*-
 """
-LSTM-Baseline (Count) – reine Zeitreihen-Vorhersage.
-====================================================
+LSTM count baseline: pure time-series prediction, no graph structure.
 
-Vergleich 2 der Aufgabenstellung: prognostiziert pro Stationspaar (u->i) die
-Fahrtenzahl im naechsten 30-Minuten-Bin aus der vergangenen Count-Reihe dieses
-Paares (= Differenz der num_rides-Zeitreihe). KEINE Graphstruktur.
+Comparison 2 of the task. For each station pair (u->i) it predicts the number
+of trips in the next 30-minute bin from that pair's own past count series,
+i.e. the differenced num_rides series.
 
-Designentscheidungen (abgestimmt):
-  - EIN globales LSTM ueber die Count-Reihen aller Kanten (Multi-Series).
-  - Lookback = 48 Bins (24 h).
-  - Univariate Eingabe (nur vergangene Counts).
-  - Trainingsziel = MSE (entspricht der Evaluationsmetrik).
+Design:
+  - one global LSTM over the count series of all edges (multi-series)
+  - univariate input, past counts only
+  - MSE objective, matching the evaluation metric
 
-Bindet das gemeinsame Eval-Modul an: exportiert Vorhersagen als
-(u, i, bin_idx, pred_count) und bewertet via SharedLinkEval.score_count.
+The defaults below (lookback 48, hidden 64, 1 layer) are the starting point;
+the tuned configuration from the final search is wider and deeper
+(lookback 192, 2 layers, dropout 0.2) and lives in
+ablation/results/hpo_final_lstm.csv.
 
-Benötigt PyTorch (GPU optional; CPU genügt).
+Exports predictions as (u, i, bin_idx, pred_count) and scores them through
+SharedLinkEval.score_count.
+
+Needs PyTorch. A GPU is optional.
 """
 from __future__ import annotations
 import os, sys, time
@@ -33,9 +36,7 @@ sys.path.insert(0, _EVAL_DIR)
 from shared_eval import SharedLinkEval, EvalConfig   # noqa: E402
 
 
-# ===========================================================================
-# 1) KONFIGURATION
-# ===========================================================================
+# --- config ------------------------------------------------------------------
 @dataclass
 class LSTMConfig:
     lookback: int = 48             # Eingabefenster (Bins) = 24 h bei 30-min-Bins
@@ -49,12 +50,10 @@ class LSTMConfig:
     seed: int = 42
 
 
-# ===========================================================================
-# 2) DATEN: Count-Matrix (Paar x Bin) aus der SUPEREDGE-Zeitreihe bauen
-# ===========================================================================
+# --- data: build the count matrix (pair x bin) from the superedge series ----
 class CountSeries:
-    """Baut aus der aggregierten Superedge-Zeitreihe (num_rides je Bin) eine
-    dichte Count-Matrix (Paare x Bins). Genau diese Reihe ist der LSTM-Input."""
+    """Dense count matrix (pairs x bins) built from the aggregated superedge
+    series (num_rides per bin). This series is the LSTM input."""
 
     def __init__(self, ev: SharedLinkEval):
         self.ev = ev                                   # kept so the training set can use the same candidates
@@ -83,9 +82,7 @@ class CountSeries:
         return w
 
 
-# ===========================================================================
-# 3) TRAININGS-DATENSATZ (Sliding Windows ueber alle Paare im Trainingszeitraum)
-# ===========================================================================
+# --- training set: sliding windows over all pairs in the training period -----
 class WindowDataset(Dataset):
     """Training windows drawn from the SAME candidate set that shared_eval uses
     for scoring (positives + negatives at neg_ratio).
@@ -132,9 +129,7 @@ class WindowDataset(Dataset):
                 torch.tensor(self.y[k], dtype=torch.float32))
 
 
-# ===========================================================================
-# 4) MODELL
-# ===========================================================================
+# --- model -------------------------------------------------------------------
 class LSTMForecaster(nn.Module):
     def __init__(self, cfg: LSTMConfig):
         super().__init__()
@@ -150,9 +145,7 @@ class LSTMForecaster(nn.Module):
         return self.softplus(self.head(last)).squeeze(-1)    # (B,)
 
 
-# ===========================================================================
-# 5) TRAINING
-# ===========================================================================
+# --- training ----------------------------------------------------------------
 def train(cfg, cs, model, train_end_bin, device, rng, patience: int = 0,
           verbose: bool = True):
     """patience > 0 enables early stopping on validation MSE."""
@@ -203,9 +196,7 @@ def train(cfg, cs, model, train_end_bin, device, rng, patience: int = 0,
     return model
 
 
-# ===========================================================================
-# 6) VORHERSAGE-EXPORT fuer die shared_eval-Kandidaten
-# ===========================================================================
+# --- prediction export for the shared_eval candidates -----------------------
 @torch.no_grad()
 def export(cfg, cs, model, ev, split, device, out_csv):
     model.eval()
@@ -226,9 +217,7 @@ def export(cfg, cs, model, ev, split, device, out_csv):
     return pred
 
 
-# ===========================================================================
-# 7) MAIN
-# ===========================================================================
+# --- main --------------------------------------------------------------------
 def main(cfg: LSTMConfig | None = None):
     cfg = cfg or LSTMConfig()
     torch.manual_seed(cfg.seed); np.random.seed(cfg.seed)

@@ -1,28 +1,24 @@
 # -*- coding: utf-8 -*-
 """
-GraphMixer – Temporal-Graph-Baseline (binäre Link-Vorhersage)
-=============================================================
+GraphMixer temporal-graph baseline for binary link prediction.
 
-Referenz-Implementierung nach Cong et al., "Do We Really Need Complicated Model
-Architectures for Temporal Networks?" (ICLR 2023), zugeschnitten auf den
-Bike-Sharing-Datensatz dieses Projekts.
+Follows Cong et al., "Do We Really Need Complicated Model Architectures for
+Temporal Networks?" (ICLR 2023), adapted to the bike-sharing dataset.
 
-Das Modell besteht aus drei Bausteinen (siehe GraphMixer - Grundlagen.md):
-  1. Link-Encoder   : MLP-Mixer über die letzten K Kanten-Ereignisse eines Knotens
-                      (mit FESTER, nicht gelernter Zeit-Kodierung).
-  2. Node-Encoder   : Mittelung der Knoten-Features der jüngsten Nachbarn.
-  3. Link-Classifier: MLP über die kombinierten Embeddings von (u, v) -> Link-Score.
+Three parts:
+  1. link encoder    MLP-Mixer over a node's last K edge events, using a fixed
+                     (not learned) time encoding.
+  2. node encoder    mean of the node features of the most recent neighbours.
+  3. classifier      MLP over the combined (u, v) embeddings -> link score.
 
-Eingabe : die aufbereiteten Dateien aus  prepared/  (ml_citibike.csv/.npy/_node.npy)
-Ausgabe : Vorhersagen im Format des gemeinsamen Eval-Moduls
-          (Spalten: u, i, bin_idx, score) -> shared_eval.SharedLinkEval.score_binary
+Input:  ml_citibike.csv / .npy / _node.npy from "prepared Data".
+Output: u, i, bin_idx, score -> shared_eval.SharedLinkEval.score_binary
 
-HINWEIS Knoten-Indizierung
-  Die ml_citibike-Dateien sind 1-indiziert (Zeile 0 = Padding). Intern rechnet
-  dieses Modul ebenfalls 1-indiziert. Beim EXPORT für shared_eval wird auf die
-  kanonische 0-Indizierung (-1) zurückgerechnet (siehe export_predictions()).
+Node indexing: the ml_citibike files are 1-indexed (row 0 is padding) and this
+module keeps that convention internally. export_predictions() subtracts 1 to
+get back to the canonical 0-indexing that shared_eval expects.
 
-Benötigt PyTorch (GPU optional; CPU genügt, der Datensatz ist klein).
+Needs PyTorch. A GPU is optional, the dataset is small enough for CPU.
 """
 
 from __future__ import annotations
@@ -36,30 +32,28 @@ import torch
 import torch.nn as nn
 
 
-# ===========================================================================
-# 1) KONFIGURATION
-# ===========================================================================
+# --- configuration ---------------------------------------------------------
 @dataclass
 class GMConfig:
-    # Pfade (relativ zu diesem Skript)
+    # paths, relative to this file
     prep_dir: str = os.path.join(os.path.dirname(__file__), "..", "..", "prepared Data")
-    # Modell-Hyperparameter
-    num_neighbors: int = 20        # K – Anzahl jüngster Kanten je Knoten (Link-Encoder)
-    time_dim: int = 100            # Dimension der festen Zeit-Kodierung
-    mixer_layers: int = 2          # Anzahl MLP-Mixer-Blöcke
-    hidden_dim: int = 128          # versteckte Dimension der MLPs
-    node_emb_dim: int = 100        # Ausgabedimension des Node-Encoders
+    # model
+    num_neighbors: int = 20        # K: most recent edges per node
+    time_dim: int = 100            # width of the fixed time encoding
+    mixer_layers: int = 2
+    hidden_dim: int = 128
+    node_emb_dim: int = 100        # output width of the node encoder
     dropout: float = 0.1
-    # Trainings-Parameter
+    # training
     lr: float = 1e-3
     epochs: int = 20
     batch_size: int = 256
-    # Trainingspaare werden aus shared_eval gezogen (gleiche Verteilung wie die
-    # Auswertung). Deckel, weil GraphMixer je Paar zwei Nachbarschafts-Packs
-    # baut und die vollen 374k Kandidaten die Epoche verdreifachen wuerden.
+    # Training pairs come from shared_eval, so training and evaluation see the
+    # same class balance. Capped because each pair needs two neighbourhood
+    # packs; the full 374k candidates would triple the epoch time.
     max_train_pairs: int = 150_000
     seed: int = 42
-    # zeitliche Grenzen (in Sekunden seit Fensterbeginn) – identisch zu shared_eval
+    # split boundaries in seconds from the start of the window, as in shared_eval
     bin_minutes: int = 30
     train_days: int = 21
     val_days: int = 4
@@ -77,22 +71,19 @@ class GMConfig:
         return self.bin_minutes * 60
 
 
-# ===========================================================================
-# 2) FESTE ZEIT-KODIERUNG
-# ===========================================================================
+# --- fixed time encoding ---------------------------------------------------
 class FixedTimeEncoder(nn.Module):
-    """Bildet eine Zeitdifferenz Δt (Sekunden) auf einen Vektor ab.
+    """Maps a time difference in seconds to a vector.
 
-    GraphMixer nutzt bewusst eine FESTE (nicht gelernte) Kodierung, weil
-    lernbare Zeit-Encoder das Training destabilisieren. Wir verwenden eine
-    Kosinus-Kodierung mit logarithmisch gestaffelten Frequenzen (wie bei der
-    Positional Encoding): langsame Frequenzen erfassen "vor langer Zeit",
-    schnelle Frequenzen "gerade eben".
+    The encoding is fixed rather than learned; the paper reports that learnable
+    time encoders destabilise training. Cosine with log-spaced frequencies, as
+    in positional encoding: slow frequencies carry "long ago", fast ones
+    "just now".
     """
 
     def __init__(self, dim: int):
         super().__init__()
-        # Frequenzen fest vorgeben und NICHT als Parameter registrieren
+        # fixed frequencies, deliberately not registered as parameters
         freqs = 1.0 / (10000 ** (np.arange(0, dim) / dim))
         self.register_buffer("freqs", torch.tensor(freqs, dtype=torch.float32))
 
@@ -101,12 +92,10 @@ class FixedTimeEncoder(nn.Module):
         return torch.cos(dt.unsqueeze(-1) * self.freqs)
 
 
-# ===========================================================================
-# 3) MLP-MIXER (Herzstück des Link-Encoders)
-# ===========================================================================
+# --- MLP-Mixer, the core of the link encoder --------------------------------
 class MixerBlock(nn.Module):
-    """Ein MLP-Mixer-Block: erst Token-Mixing (über die K Ereignisse),
-    dann Channel-Mixing (über die Feature-Dimension). Beide mit Residual."""
+    """One MLP-Mixer block: token mixing over the K events, then channel
+    mixing over the feature dimension. Both with a residual connection."""
 
     def __init__(self, num_tokens: int, num_channels: int, hidden: int, dropout: float):
         super().__init__()
@@ -123,22 +112,22 @@ class MixerBlock(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x: (batch, num_tokens=K, num_channels)
-        # --- Token-Mixing: mischt Information ÜBER die K Ereignisse ---
+        # token mixing: across the K events
         y = self.norm_token(x).transpose(1, 2)          # (B, C, K)
         y = self.token_mlp(y).transpose(1, 2)           # (B, K, C)
         x = x + y
-        # --- Channel-Mixing: mischt Information ÜBER die Features ---
+        # channel mixing: across the feature dimension
         z = self.norm_channel(x)
         z = self.channel_mlp(z)
         return x + z
 
 
 class LinkEncoder(nn.Module):
-    """Verdichtet die letzten K Kanten-Ereignisse eines Knotens zu einem Vektor.
+    """Compresses a node's last K edge events into one vector.
 
-    Eingabe pro Knoten: eine Matrix (K, d_edge + d_time) aus
-      [Kanten-Feature  ||  feste Zeit-Kodierung von (t_query - t_event)].
-    Ausgabe: ein Embedding je Knoten (mittlere Token-Repräsentation).
+    Input per node: a (K, d_edge + d_time) matrix of
+      [edge feature || fixed time encoding of (t_query - t_event)].
+    Output: one embedding per node, the mean token representation.
     """
 
     def __init__(self, cfg: GMConfig, edge_feat_dim: int):
@@ -159,15 +148,13 @@ class LinkEncoder(nn.Module):
         for blk in self.blocks:
             x = blk(x)
         x = self.norm(x)
-        return x.mean(dim=1)          # Mittelung über die K Ereignisse -> (batch, in_dim)
+        return x.mean(dim=1)          # mean over the K events -> (batch, in_dim)
 
 
-# ===========================================================================
-# 4) NODE-ENCODER
-# ===========================================================================
+# --- node encoder ----------------------------------------------------------
 class NodeEncoder(nn.Module):
-    """Beschreibt die Identität/jüngste Aktivität eines Knotens über den
-    Mittelwert der Knoten-Features seiner jüngsten Nachbarn plus eigene Features."""
+    """Describes a node through its own features plus the mean features of its
+    most recent neighbours."""
 
     def __init__(self, cfg: GMConfig, node_feat_dim: int):
         super().__init__()
@@ -183,11 +170,9 @@ class NodeEncoder(nn.Module):
         return self.mlp(torch.cat([own_feat, neigh_mean_feat], dim=-1))
 
 
-# ===========================================================================
-# 5) GESAMTMODELL
-# ===========================================================================
+# --- full model ------------------------------------------------------------
 class GraphMixer(nn.Module):
-    """Kombiniert Link- und Node-Encoder für u und v und sagt den Link-Score voraus."""
+    """Combines link and node encoder for u and v into a link score."""
 
     def __init__(self, cfg: GMConfig, edge_feat_dim: int, node_feat_dim: int):
         super().__init__()
@@ -202,13 +187,13 @@ class GraphMixer(nn.Module):
         )
 
     def encode_node(self, link_tokens, own_feat, neigh_mean_feat):
-        """Embedding eines (Satzes von) Knoten aus Link- und Node-Encoder."""
+        """Embedding for a batch of nodes, from the link and node encoders."""
         return torch.cat([self.link_enc(link_tokens),
                           self.node_enc(own_feat, neigh_mean_feat)], dim=-1)
 
     def forward(self, u_pack, v_pack) -> torch.Tensor:
         """u_pack / v_pack = (link_tokens, own_feat, neigh_mean_feat).
-        Rückgabe: Logit (vor Sigmoid) je Paar, Form (batch,)."""
+        Returns one logit per pair, shape (batch,), before the sigmoid."""
         hu = self.encode_node(*u_pack)
         hv = self.encode_node(*v_pack)
         return self.classifier(torch.cat([hu, hv], dim=-1)).squeeze(-1)

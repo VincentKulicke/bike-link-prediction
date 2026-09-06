@@ -76,7 +76,7 @@ def main():
         g = load(name, spec)
         print(f"\n{'='*72}\n{name}\n{'='*72}")
         if g is None:
-            print("  noch keine Ergebnisse"); continue
+            print("  no results yet"); continue
         g["rank"] = np.arange(1, len(g) + 1)
         best, worst = g.iloc[0], g.iloc[-1]
         sign = 1.0 if spec["higher"] else -1.0

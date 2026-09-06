@@ -61,7 +61,7 @@ def _fmt(res, model, split, key, nd=3):
 
 
 def binary_table(res):
-    rows = ["## Comparison 1 – binary (link yes/no)", "",
+    rows = ["## Comparison 1: binary (link yes/no)", "",
             "| Model | Split | AUC | AP | F1 | Accuracy |",
             "|---|---|---|---|---|---|"]
     for model in ["Hybrid", "GraphMixer"]:
@@ -73,7 +73,7 @@ def binary_table(res):
 
 
 def count_table(res):
-    rows = ["## Comparison 2 – count (number of rides)", "",
+    rows = ["## Comparison 2: count (number of rides)", "",
             "| Model | Split | MSE | MAE | RMSE |",
             "|---|---|---|---|---|"]
     for model in ["Hybrid", "LSTM"]:
@@ -93,9 +93,8 @@ def main():
               + (f" | missing: {', '.join(missing)}" if missing else ""))
 
     note = ("> Single run per model (seed 42). For error bars see "
-            "`ablation/results/seeds_comparison.md` — across 5 seeds the hybrid sits at "
-            "AP 0.923 ± 0.001 and GraphMixer at 0.596 ± 0.023, so GraphMixer in particular "
-            "varies noticeably from seed to seed.")
+            "`ablation/results/final_eval_summary.csv`: over 5 seeds the hybrid "
+            "reaches AP 0.9238 +/- 0.0004 and GraphMixer 0.9019 +/- 0.0014.")
     out = ("# Model comparison\n\n" + status + "\n\n" + note + "\n\n"
            + binary_table(res) + "\n\n" + count_table(res) + "\n")
     print(out)

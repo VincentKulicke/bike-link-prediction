@@ -1,26 +1,26 @@
 # -*- coding: utf-8 -*-
 """
-eval_branches.py — component ablations for the hybrid model.
+eval_branches.py: component ablations for the hybrid model.
 ============================================================
 
 Encoder swap (GRU ↔ CNN) only shows that the *encoding* is interchangeable.
 It does not show whether the temporal branch, the graph branch, or the pair
 features carry the signal. This script removes each component in turn by
-zeroing its contribution (same parameter count — see HybridHurdle).
+zeroing its contribution (same parameter count, see HybridHurdle).
 
 Variants:
-  full         — all branches on
-  no_graph     — use_graph=False
-  no_temporal  — use_temporal=False
-  no_pair      — use_pair=False
+  full         all branches on
+  no_graph     use_graph=False
+  no_temporal  use_temporal=False
+  no_pair      use_pair=False
 
 Runs both encoders, each on its own winner from the final grid search, so the
 branch contributions are measured on the models the talk actually reports.
 Configs are read from hpo_final_*.csv rather than hard-coded.
 
-Only the *model* seed varies (42–46); EvalConfig stays at 42 so every run is
+Only the model seed varies (42-46); EvalConfig stays at 42 so every run is
 scored on the same candidate set. Full-model numbers are measured on this
-machine — do not copy CUDA reference numbers into the delta.
+machine, so do not copy CUDA reference numbers into the delta.
 
 Usage:
   python eval_branches.py              # 2 encoders × 4 variants × 5 seeds
@@ -166,7 +166,7 @@ def write_comparison_md(summ: pd.DataFrame, n_seeds: int, device: str,
         lines += ["", f"### {enc.upper()} - difference vs. full model", "",
                   "Pooled standard deviations sqrt((sigma_abl^2 + sigma_full^2)/2); "
                   "below ~2 sigma is not distinguishable from seed noise. "
-                  "AP and MSE can disagree — a branch may look irrelevant under "
+                  "AP and MSE can disagree: a branch may look irrelevant under "
                   "binary AP while still feeding the count head.", "",
                   "| Variant | d AP | sigma | Verdict (AP) | d MSE | sigma | Verdict (MSE) |",
                   "|---|---|---|---|---|---|---|"]
