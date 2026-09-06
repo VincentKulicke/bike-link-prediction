@@ -40,12 +40,12 @@ EN_WD = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 TXT = dict(
     de=dict(real="Realität", pred="Vorhersage (Top-K)",
             prof="Verbindungen je 30-Minuten-Fenster",
-            conn="%d Verbindungen", hit="%d/%d getroffen  (%.2f)",
+            conn="%d Verbindungen", hit="%d/%d korrekt  (%.2f)",
             foot="Linien = Stationspaare, keine einzelnen Fahrräder · "
                  "Dicke ∝ Fahrtenzahl · K = Zahl der echten Verbindungen"),
     en=dict(real="Reality", pred="Prediction (top K)",
             prof="Connections per 30-minute window",
-            conn="%d connections", hit="%d/%d hit  (%.2f)",
+            conn="%d connections", hit="%d/%d correct  (%.2f)",
             foot="Lines = station pairs, not individual bikes · "
                  "width ∝ trip count · K = number of real connections"),
 )
