@@ -65,9 +65,9 @@ Raw stratified metrics: `ranking_stratified.csv`
 
 4. ~~**The HPO selection objective matters.**~~ *Retracted.* The original reading
    was that GraphMixer's HPO config, chosen on 1:5 val AP, transfers poorly to
-   1-vs-99 ranking (MRR 0.342 → 0.315). The two-factor experiment
-   (`factors_comparison.md`) later measured GraphMixer's seed noise at
-   σ ≈ 0.07 AP — far larger than this gap. Both numbers here are single runs, so
+   1-vs-99 ranking (MRR 0.342 → 0.315). A later two-factor experiment measured
+   GraphMixer's seed noise at σ ≈ 0.07 AP under the then-broken training —
+   far larger than this gap. Both numbers here are single runs, so
    the difference is not distinguishable from noise and the claim does not hold.
    Confirming or refuting it would require running the ranking evaluation across
    several seeds.

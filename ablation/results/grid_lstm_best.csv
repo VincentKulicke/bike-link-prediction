@@ -1,2 +1,0 @@
-model,best_config,test_mse,test_mae,test_rmse
-LSTM (HPO),lr0.001_h64_L1,0.11580186536105208,0.16067870894157468,0.34029673134053473

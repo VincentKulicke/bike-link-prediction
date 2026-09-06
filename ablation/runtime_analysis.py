@@ -2,15 +2,6 @@
 """
 runtime_analysis.py - how long the models take, and what you get for it.
 
-Two parts:
-
-  Phase A (--phase a, no new compute)
-      Re-uses the `sec` column already recorded in the grid CSVs (81 configs).
-      Within one model the epoch count and implementation are constant, so this
-      shows which hyperparameter drives cost. Across models the raw totals are
-      NOT comparable (different epoch counts, different implementations), which
-      is why phase B exists.
-
   Phase B (--phase b, ~70-90 min)
       Controlled measurement of the four best configs, 5 seeds each:
       train time per epoch, inference time on the test candidates, peak GPU
@@ -47,77 +38,7 @@ sys.path.insert(0, os.path.join(_HERE, "..", "graphmixer", "model"))
 
 RAW_B = os.path.join(RES, "runtime_controlled.csv")
 
-# epochs per model - needed to make the grid totals comparable
-EPOCHS = {"Hybrid GRU": 15, "Hybrid CNN": 15, "LSTM": 10, "GraphMixer": 20}
 
-GRIDS = [
-    ("Hybrid GRU",  "grid_hybrid_gru.csv",  ["lr", "hidden", "lambda_count"], "val_ap",  True),
-    ("Hybrid CNN",  "grid_hybrid_cnn.csv",  ["lr", "hidden", "kernel_size"],  "val_ap",  True),
-    ("LSTM",        "grid_lstm.csv",        ["lr", "hidden_dim", "num_layers"], "val_mse", False),
-    ("GraphMixer",  "grid_graphmixer.csv",  ["lr", "hidden_dim", "mixer_layers"], "val_ap", True),
-]
-
-
-# ===========================================================================
-# Phase A - what the existing grid runs already tell us
-# ===========================================================================
-def phase_a():
-    rows, per_hp = [], []
-    for name, fn, hps, metric, higher_better in GRIDS:
-        p = os.path.join(RES, fn)
-        if not os.path.exists(p):
-            print(f"  [skip] {fn} missing")
-            continue
-        d = pd.read_csv(p)
-        ep = EPOCHS[name]
-        rows.append(dict(
-            model=name, n_configs=len(d), epochs=ep,
-            sec_median=d.sec.median(), sec_min=d.sec.min(), sec_max=d.sec.max(),
-            sec_per_epoch_median=d.sec.median() / ep,
-            spread_factor=d.sec.max() / d.sec.min(),
-            best_metric=(d[metric].max() if higher_better else d[metric].min()),
-        ))
-        # Runtimes drift upward over a grid (the laptop GPU throttles), so a
-        # hyperparameter whose levels were swept in blocks picks that drift up
-        # as a fake effect. Report the raw ratio, but also the ratio measured
-        # *within* run-order blocks, and how strongly the parameter is
-        # confounded with position in the grid.
-        drift = d.index.to_series().corr(d.sec)
-        rows[-1]["drift_corr"] = drift
-        for hp in hps:
-            if hp not in d.columns:
-                continue
-            g = d.groupby(hp)["sec"].median()
-            conf = abs(d[hp].rank(method="dense").corr(d.index.to_series()))
-            # within-block: compare levels only among runs that sit close together
-            blocks = pd.qcut(d.index, q=min(3, d[hp].nunique()), labels=False, duplicates="drop")
-            within = []
-            for _, sub in d.groupby(blocks):
-                gg = sub.groupby(hp)["sec"].median()
-                if len(gg) > 1:
-                    within.append(gg.max() / gg.min())
-            per_hp.append(dict(model=name, hyperparam=hp,
-                               levels="; ".join(f"{k}:{v:.0f}s" for k, v in g.items()),
-                               ratio_raw=g.max() / g.min(),
-                               ratio_within_block=(np.median(within) if within else np.nan),
-                               confounded_with_order=conf))
-
-    summary = pd.DataFrame(rows)
-    hp_tab = pd.DataFrame(per_hp)
-    summary.to_csv(os.path.join(RES, "runtime_grid_summary.csv"), index=False)
-    hp_tab.to_csv(os.path.join(RES, "runtime_hyperparams.csv"), index=False)
-
-    print("\n=== Phase A: grid runtimes (existing runs) ===")
-    print(summary.to_string(index=False, float_format=lambda v: f"{v:.1f}"))
-    print("\n  drift_corr = correlation between run order and runtime.")
-    print("  High values mean the machine slowed down over the grid, so raw")
-    print("  per-hyperparameter ratios below are not causal on their own.")
-    print("\n=== Which hyperparameter drives the runtime? ===")
-    print(hp_tab.to_string(index=False, float_format=lambda v: f"{v:.2f}"))
-    print("\n  ratio_within_block controls for the drift; trust it over ratio_raw")
-    print("  when confounded_with_order is high.")
-    print(f"\n[written] runtime_grid_summary.csv, runtime_hyperparams.csv")
-    return summary, hp_tab
 
 
 # ===========================================================================
@@ -202,14 +123,15 @@ def write_report(summ, elapsed_min, device):
           "magnitude (transient thermal or driver effects). Models are measured",
           "interleaved within each seed, not in blocks, so drift cannot favour",
           "whichever model runs last.", "",
-          "## The grid timings cannot be used for this", "",
-          "In `grid_hybrid_gru.csv` runtime correlates 0.87 with run order. Since",
-          "no model uses early stopping there, no hyperparameter can change",
-          "runtime causally -- the apparent 2x learning-rate effect is thermal",
-          "drift, because lr was the outer loop in every grid.", "",
+          "## Why a dedicated measurement, not the search timings", "",
+          "Reusing the `sec` column from a hyperparameter search looks cheap but",
+          "does not work: within a search, runtime correlates strongly with run",
+          "order (thermal drift on this laptop), and the outer loop variable",
+          "picks that drift up as an apparent effect. Every number here comes",
+          "from the controlled run instead.", "",
           "## Reproduce", "",
-          "```bash", "python ablation/runtime_analysis.py --phase a   # grid diagnostics",
-          "python ablation/runtime_analysis.py --phase b   # controlled measurement",
+          "```bash", "python ablation/runtime_analysis.py --phase b   # controlled measurement",
+          "python ablation/runtime_analysis.py --phase summary",
           "```", "",
           f"Measured in ~{elapsed_min:.0f} min on {device}.",
           "Raw data: `runtime_controlled.csv`, aggregated: `runtime_summary.csv`", ""]
@@ -437,17 +359,25 @@ def summarize_b():
     print("\n=== Phase B: controlled measurement (medians over seeds) ===")
     print(g.to_string(index=False, float_format=lambda v: f"{v:.2f}"))
     print(f"\n[written] runtime_summary.csv")
-    write_report(g, elapsed_min=(time.time() - _t_start) / 60, device=device)
+    # elapsed and device used to be read from phase_b()'s locals, which only
+    # worked when summarize_b() happened to run in the same process -- calling
+    # --phase summary on its own raised NameError. Both are derived from the
+    # recorded runs now, which also makes the report reproducible from the CSV.
+    elapsed_min = (d.t_train_total.sum() + d.t_infer.sum()) / 60.0
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    write_report(g, elapsed_min=elapsed_min, device=dev)
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--phase", default="a", choices=["a", "b", "summary"])
+    # Phase A ("was verraten die vorhandenen Grid-Laeufe?") ist entfallen: sie
+    # las die Juli-Gitter aus, deren Metriken vor den beiden Baseline-Fixes
+    # entstanden. Die Laufzeitaussage stuetzt sich jetzt allein auf die
+    # kontrollierte Messung.
+    ap.add_argument("--phase", default="b", choices=["b", "summary"])
     ap.add_argument("--seeds", type=int, default=5)
     a = ap.parse_args()
-    if a.phase == "a":
-        phase_a()
-    elif a.phase == "b":
+    if a.phase == "b":
         phase_b(list(range(42, 42 + a.seeds)))
     else:
         summarize_b()

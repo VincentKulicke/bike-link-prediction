@@ -30,7 +30,7 @@ nicht auseinanderlaufen.
 | GraphMixer Seed-σ **0,0375** | **0,0014** | Artefakt des defekten Trainings |
 | „Hybrid ist pareto-dominant, 19× schneller" | **9× bei der Inferenz** | GraphMixer trainiert jetzt schneller |
 | „Der temporale Branch trägt nichts bei" | **redundant, nicht nutzlos** | siehe Abschnitt 10 |
-| σ-Angaben aus `factors_comparison.md` | überholt | altes Seed-Rauschen, siehe Abschnitt 7 |
+| frühere σ-Angaben aus der Faktoren-Analyse | überholt | altes Seed-Rauschen, siehe Abschnitt 7 |
 
 > Anders als bei der letzten Korrekturrunde macht diese Runde den Vorsprung des
 > Hybridmodells **kleiner**, nicht größer. Der Abstand zu GraphMixer schrumpft
@@ -216,8 +216,10 @@ trainiert, sitzt nahe an einer degenerierten Lösung, wo Zufall stark durchschl�
 Das LSTM rauscht jetzt *stärker* als zuvor, weil die Siegerkonfiguration zwei
 Schichten mit Dropout nutzt statt einer ohne.
 
-> `factors_comparison.md` und `seeds_comparison.md` beruhen auf dem alten
-> Rauschen und sind **überholt**.
+> Die früheren Faktoren- und Seed-Auswertungen beruhten auf dem alten
+> Rauschen. Sie wurden am 06.09.2026 aus dem Repo entfernt; maßgeblich ist
+> `final_eval_summary.csv`. Die alten Stände bleiben über die Git-Historie
+> erreichbar.
 
 ---
 

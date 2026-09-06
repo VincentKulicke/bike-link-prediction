@@ -57,19 +57,20 @@ magnitude (transient thermal or driver effects). Models are measured
 interleaved within each seed, not in blocks, so drift cannot favour
 whichever model runs last.
 
-## The grid timings cannot be used for this
+## Why a dedicated measurement, not the search timings
 
-In `grid_hybrid_gru.csv` runtime correlates 0.87 with run order. Since
-no model uses early stopping there, no hyperparameter can change
-runtime causally -- the apparent 2x learning-rate effect is thermal
-drift, because lr was the outer loop in every grid.
+Reusing the `sec` column from a hyperparameter search looks cheap but
+does not work: within a search, runtime correlates strongly with run
+order (thermal drift on this laptop), and the outer loop variable
+picks that drift up as an apparent effect. Every number here comes
+from the controlled run instead.
 
 ## Reproduce
 
 ```bash
-python ablation/runtime_analysis.py --phase a   # grid diagnostics
 python ablation/runtime_analysis.py --phase b   # controlled measurement
+python ablation/runtime_analysis.py --phase summary
 ```
 
-Measured in ~53 min on cuda.
+Measured in ~45 min on cuda.
 Raw data: `runtime_controlled.csv`, aggregated: `runtime_summary.csv`

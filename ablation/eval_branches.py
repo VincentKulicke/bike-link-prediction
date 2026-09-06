@@ -117,7 +117,7 @@ def summarize(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _pooled_sigma(std_a: float, std_b: float) -> float:
-    """Pooled SD as in seeds_comparison.md: sqrt((σ_a² + σ_b²) / 2)."""
+    """Pooled SD: sqrt((sigma_a^2 + sigma_b^2) / 2)."""
     return float(np.sqrt((std_a ** 2 + std_b ** 2) / 2.0))
 
 
