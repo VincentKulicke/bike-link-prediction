@@ -1,51 +1,54 @@
 # Bike-Sharing Link Prediction on Hybrid Graph + Time Series
 
-Hybride Link-Vorhersage auf dem NYC/Jersey-City-Bike-Sharing-Netz: Sage für ein
-Stationspaar in einem zukünftigen Zeitfenster vorher, **ob** eine Fahrt
-stattfindet (binär) und **wie viele** Fahrten (count). Kombiniert Graphstruktur
-mit kontinuierlichen Knoten-Zeitreihen (Verfügbarkeit).
+Hybrid link prediction on the NYC / Jersey City bike-sharing network: for a
+station pair and a future time window, predict **whether** a ride happens
+(binary) and **how many** rides (count). Combines graph structure with
+continuous node time series (availability).
 
-Big-Data-Praktikum, Universität Leipzig.
+Big Data Praktikum, Leipzig University.
 
-## Aufgabe & Vergleiche
+## Task & comparisons
 
-- **Eigenes Hybridmodell**: Graph-Branch (GCN/GraphSAGE) + Zeitreihen-Branch
-  (1D-CNN/GRU) + Fusion; zwei Ausgaben (binär + count).
-- **Vergleich 1 (binär)**: eigenes Modell vs. **GraphMixer** (Temporal-Graph-Baseline) — AUC, AP.
-- **Vergleich 2 (count)**: eigenes Modell vs. **LSTM** (Zeitreihen-Baseline) — MSE, MAE.
-- Ground Truth des Counts = Differenz der kumulativen `num_rides`-Zeitreihe.
+- **Our hybrid model**: graph branch (GCN/GraphSAGE) + time-series branch
+  (1D-CNN/GRU) + fusion; two outputs (binary + count).
+- **Comparison 1 (binary)**: our model vs. **GraphMixer** (temporal-graph baseline) — AUC, AP.
+- **Comparison 2 (count)**: our model vs. **LSTM** (time-series baseline) — MSE, MAE.
+- Ground truth for the count = difference of the cumulative `num_rides` series.
 
-## Struktur
+## Layout
 
 ```
 .
 ├── evaluation/
-│   └── shared_eval.py          # MODELL-AGNOSTISCHES Eval (binär + count), eine GT/ein Split für alle
-├── prepared Data/              # aufbereitete Eingaben für ALLE Modelle (klein) + README
+│   └── shared_eval.py          # MODEL-AGNOSTIC eval (binary + count), one GT / one split for all
+├── prepared Data/              # prepared inputs for ALL models (small) + README
 ├── graphmixer/
-│   ├── model/                  # GraphMixer (PyTorch) + lokaler Runner
+│   ├── model/                  # GraphMixer (PyTorch) + local runner
 │   └── prepare_hybrid_inputs.py
-├── lstm/                       # LSTM-Baseline (count) + lokaler Runner
-├── hybrid_model/               # iteration1 (Ablation) + iteration2 (GraphSAGE+GRU+Hurdle)
-├── compare_models.py           # sammelt Vorhersagen → finale Vergleichstabellen
-└── docs/                       # Konzept (DE/EN), Datenanalyse, Methoden-Bewertung, Erklärungen
+├── lstm/                       # LSTM baseline (count) + local runner
+├── hybrid_model/               # iteration1 (ablation) + iteration2 (GraphSAGE+GRU+hurdle)
+├── ablation/                   # grid-search HPO, encoder ablation, seed & factor experiments
+│   └── results/                # comparison reports (ablation, ranking, seeds, factors)
+├── compare_models.py           # collects predictions → final comparison tables
+└── results/                    # comparison.md across all models
 ```
 
-## Daten
+## Data
 
-Die **aufbereiteten** Dateien liegen in `prepared Data/` (siehe das dortige
-README für Schema und Konventionen) und werden von allen Modellen genutzt.
+The **prepared** files live in `prepared Data/` (see the README there for the
+schema and conventions) and are used by every model.
 
-**Count-Ground-Truth = Superedge-`num_rides`-Differenz** (`superedge_counts.csv`),
-gemäß Aufgabenstellung. Die LSTM nutzt dieselbe Superedge-Zeitreihe als Eingabe;
-der GraphMixer nutzt die einzelnen, zeitgestempelten Kanten (`ml_citibike.*`).
+**Count ground truth = super-edge `num_rides` difference** (`superedge_counts.csv`),
+as required by the assignment. The LSTM uses the same super-edge series as input;
+GraphMixer uses the individual, timestamped edges (`ml_citibike.*`).
 
-Die **Rohdaten** sind absichtlich NICHT im Repo (zu groß), aber öffentlich reproduzierbar:
+The **raw data** is intentionally NOT in the repo (too large), but publicly
+reproducible:
 
-- Hybrid-Datensatz (Superedge, Zeitreihen): Zenodo DOI `10.5281/zenodo.13846868`
-- Temporaler Graph (Einzelfahrten): Citi Bike System Data, Dateien
+- Hybrid dataset (super-edge, time series): Zenodo DOI `10.5281/zenodo.13846868`
+- Temporal graph (individual trips): Citi Bike System Data, files
   `JC-202405-citibike-tripdata.csv`, `JC-202406-citibike-tripdata.csv`
-  (Jersey City/Hoboken, Mai+Juni 2024), gefiltert auf die 232 aktiven Stationen.
+  (Jersey City / Hoboken, May + June 2024), filtered to the 232 active stations.
 
 ## Setup
 
@@ -55,58 +58,50 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-## Modelle lokal ausführen
+## Running the models locally
 
-Alles läuft lokal (CPU genügt, der Datensatz ist klein; GPU wird genutzt falls
-vorhanden). Jedes Modell hat ein Runner-Notebook, das aus seinem Ordner heraus
-ausgeführt wird, oder kann per Skript gestartet werden:
+Everything runs locally (CPU is enough, the dataset is small; a GPU is used if
+available). Each model has a runner notebook that is executed from its own
+folder, or can be started via script:
 
 ```bash
-# GraphMixer (binär)
-cd graphmixer/model && python train_graphmixer.py        # oder run_graphmixer.ipynb
+# GraphMixer (binary)
+cd graphmixer/model && python train_graphmixer.py        # or run_graphmixer.ipynb
 # LSTM (count)
-cd lstm && python lstm_count.py                          # oder run_lstm.ipynb
-# Hybridmodell (binär + count)
+cd lstm && python lstm_count.py                          # or run_lstm.ipynb
+# Hybrid model (binary + count)
 #   hybrid_model/iteration2_graphsage_gru_hurdle.ipynb
 ```
-Schneller Smoke-Test über die Configs, z. B. `GMConfig(epochs=2)` /
-`LSTMConfig(epochs=2)`. Jede Ausführung schreibt `predictions/*.csv` im
-jeweiligen Modellordner.
+Quick smoke test via the configs, e.g. `GMConfig(epochs=2)` /
+`LSTMConfig(epochs=2)`. Every run writes `predictions/*.csv` in the respective
+model folder.
 
-## Finale Vergleichstabellen
+## Final comparison tables
 
 ```bash
-python compare_models.py     # sammelt alle predictions/*.csv -> results/comparison.md
+python compare_models.py     # collects all predictions/*.csv -> results/comparison.md
 ```
 
-## Bewertung (für alle Modelle gleich)
+## Ablation study (grid-search HPO)
 
-Jedes Modell exportiert Vorhersagen mit den Spalten `u, i, bin_idx` plus
-`score` (binär) und/oder `pred_count` (count), Knoten-IDs **kanonisch 0-indiziert**.
-Dann:
+`ablation/` tunes every model with the same search depth (grid search, selection
+on validation only) and adds a GraphSAGE + 1D-CNN encoder ablation. See
+`ablation/results/ablation_comparison.md`.
+
+```bash
+cd ablation && bash run_all_grids.sh     # runs all four grids, then:
+python make_ablation_comparison.py       # writes ablation_comparison.md
+```
+
+## Evaluation (identical for every model)
+
+Each model exports predictions with the columns `u, i, bin_idx` plus `score`
+(binary) and/or `pred_count` (count), node IDs **canonically 0-indexed**. Then:
 ```python
 from evaluation.shared_eval import SharedLinkEval
 ev = SharedLinkEval()
 ev.score_binary(pred_df, split="test")   # AUC, AP, F1, Acc
 ev.score_count(pred_df,  split="test")   # MSE, MAE, RMSE
 ```
-Das garantiert identische Ground Truth, Splits und Kandidatenpaare über alle
-Verfahren hinweg.
-
-## Stand
-
-- [x] Datenaufbereitung + Sanity-Check
-- [x] Gemeinsames Evaluationsmodul
-- [x] GraphMixer-Baseline (Code + lokaler Runner)
-- [x] LSTM-Baseline (count) (Code + lokaler Runner)
-- [x] Hybridmodell GraphSAGE+GRU+Hurdle (binär & count), Iteration 2
-- [ ] Modell-Läufe + finale Vergleichstabellen
-
-## Teilen via GitLab
-
-```bash
-git remote add origin <DEINE-GITLAB-REPO-URL>
-git push -u origin main
-```
-Rohdaten und Modell-Ausgaben (`predictions/`, `results/`) sind via `.gitignore`
-ausgeschlossen; die kleinen aufbereiteten Daten in `prepared Data/` liegen im Repo.
+This guarantees identical ground truth, splits and candidate pairs across all
+methods.

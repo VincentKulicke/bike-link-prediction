@@ -9,12 +9,6 @@ __pycache__/
 venv/
 env/
 
-# Modell-Ausgaben / Artefakte
-predictions/
-results/
-*.pt
-*.ckpt
-
 # Rohdaten (nicht ins Repo – siehe README)
 *.zip
 data/raw/
