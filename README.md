@@ -27,11 +27,35 @@ Big Data Praktikum, Leipzig University.
 │   └── prepare_hybrid_inputs.py
 ├── lstm/                       # LSTM baseline (count) + local runner
 ├── hybrid_model/               # iteration1 (ablation) + iteration2 (GraphSAGE+GRU+hurdle)
-├── ablation/                   # grid-search HPO, encoder ablation, seed & factor experiments
-│   └── results/                # comparison reports (ablation, ranking, seeds, factors)
-├── compare_models.py           # collects predictions → final comparison tables
+├── ablation/                   # hyperparameter search, encoder and branch ablations,
+│   │                           #   runtime measurement, map demo
+│   └── results/                # search grids, 5-seed evaluation, comparison reports
+├── compare_models.py           # collects predictions -> final comparison tables
 └── results/                    # comparison.md across all models
 ```
+
+## Results
+
+Test set, mean over 5 seeds (42-46), all models under the same protocol
+(1:5 candidate sampling, identical split and ground truth). Full tables in
+[`results/comparison.md`](results/comparison.md).
+
+| Model | AP (binary) | MSE (count) |
+|---|---|---|
+| Hybrid GRU | **0.9238 ± 0.0004** | **0.0826 ± 0.0004** |
+| Hybrid CNN | 0.9231 ± 0.0003 | 0.0831 ± 0.0004 |
+| GraphMixer | 0.9019 ± 0.0014 | - |
+| LSTM | - | 0.0954 ± 0.0013 |
+
+Two caveats we consider important:
+
+- Under the harder **1-vs-99 ranking** protocol no learned model beats a plain
+  frequency heuristic (MRR 0.408 vs 0.409). See
+  [`ablation/results/ranking_comparison.md`](ablation/results/ranking_comparison.md).
+- The branch ablation shows the hybrid's advantage over a **pair-features-only**
+  model is +0.0080 AP. Graph and time-series branch are largely redundant with
+  each other. See
+  [`ablation/results/branches_comparison.md`](ablation/results/branches_comparison.md).
 
 ## Data
 
